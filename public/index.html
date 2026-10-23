@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4c21a">
+<title>Juragan Nusantara</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23f4c21a'/%3E%3Ctext x='32' y='45' font-size='36' text-anchor='middle' font-family='Arial Black,sans-serif' fill='%23d9412f'%3EJN%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Gaya permainan fisik: garis tebal hitam, bayangan keras, papan kuning bergaris. */
+:root{
+  --table:#ecebe6; --ink:#1d1d22; --muted:#6c6a63; --line:#d6d3c8; --card:#ffffff;
+  --yellow:#f4c21a; --yellow-2:#f7d04a;
+  --red:#d9412f; --blue:#2f6fd0; --green:#1f9a62;
+  --display:"Bricolage Grotesque", "Arial Black", system-ui, sans-serif;
+  --body:"Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--table);color:var(--ink);font-family:var(--body);font-size:15px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,label:focus-within{outline:3px solid var(--blue);outline-offset:2px}
+[hidden]{display:none!important}
+.btn{border:2px solid var(--ink);background:#fff;border-radius:10px;padding:.6rem 1rem;font-weight:700;box-shadow:0 3px 0 var(--ink);transition:transform .08s,box-shadow .08s;display:inline-flex;align-items:center;justify-content:center;gap:.4rem}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:0 3px 0 var(--ink)}
+.btn.y{background:var(--yellow)}
+.btn.r{background:var(--red);color:#fff}
+.btn.b{background:var(--blue);color:#fff}
+.btn.g{background:var(--green);color:#fff}
+.btn.sm{padding:.35rem .65rem;font-size:13px;border-radius:8px;box-shadow:0 2px 0 var(--ink)}
+.btn.link{border:none;box-shadow:none;background:none;text-decoration:underline;padding:.3rem .4rem}
+input[type=text],input[type=number],select{font:inherit;border:2px solid var(--ink);border-radius:10px;padding:.6rem .75rem;background:#fff;width:100%}
+.stripes{background:repeating-linear-gradient(135deg,var(--yellow) 0 22px,var(--yellow-2) 22px 44px)}
+
+/* ---------- Gabung / lobi ---------- */
+.screen{min-height:100vh;display:grid;place-items:center;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left))}
+.panel{background:#fff;border:3px solid var(--ink);border-radius:18px;box-shadow:0 8px 0 var(--ink);padding:24px;width:min(460px,100%)}
+.panel.wide{width:min(860px,100%)}
+.brandmark{font-family:var(--display);font-weight:800;line-height:.88;font-size:44px;letter-spacing:-.02em;text-transform:uppercase;margin:0 0 6px}
+.brandmark span{display:block;color:var(--red)}
+.lead{color:var(--muted);margin:0 0 18px;line-height:1.5}
+.field{display:grid;gap:6px;margin:0 0 14px}
+.field>span{font-weight:700;font-size:13px}
+.colors{display:flex;gap:8px;flex-wrap:wrap}
+.colors button{width:38px;height:38px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--ink)}
+.colors button[aria-pressed=true]{box-shadow:0 0 0 2px var(--ink),0 0 0 6px var(--yellow)}
+.colors button:disabled{opacity:.2;cursor:not-allowed}
+.colors.sm button{width:30px;height:30px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:2px solid var(--ink);background:#fff;border-radius:99px;padding:.35rem .75rem;font-size:13px;font-weight:600}
+.chips button[aria-pressed=true]{background:var(--ink);color:#fff}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.join-grid{display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:760px){.join-grid{grid-template-columns:300px minmax(0,1fr)}}
+.lobby-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:8px}
+.lobby-list li{display:flex;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:8px 10px;min-height:52px}
+.lobby-list li b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lobby-list li.empty-seat{border-style:dashed;color:var(--muted)}
+.badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 6px;background:var(--ink);color:#fff;white-space:nowrap}
+.badge.off{background:#b9b6ab}
+.badge.bot{background:var(--blue)}
+.addr{background:var(--table);border-radius:12px;padding:10px 12px;margin:0 0 16px;font-size:13px}
+.addr code{font-size:15px;font-weight:700;display:block;margin-top:2px;word-break:break-all}
+.face{width:34px;height:34px;border-radius:50%;flex:none;border:3px solid var(--c,#999);background:var(--c,#999) center/cover no-repeat;display:grid;place-items:center;font-size:14px;font-weight:800;color:#fff;box-shadow:0 0 0 2px var(--ink)}
+
+/* ---------- Editor avatar ---------- */
+.editor{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:560px){.editor{grid-template-columns:200px minmax(0,1fr)}}
+.ed-preview{display:grid;gap:8px;justify-items:center;align-content:start}
+.ed-preview canvas{width:200px;height:230px;border-radius:14px;border:2px solid var(--ink);background:radial-gradient(circle at 50% 35%,#fff7d6,#f4c21a);touch-action:none;cursor:grab}
+.ed-preview .row{justify-content:center}
+.ed-photo-hint{font-size:12px;color:var(--muted);text-align:center;margin:0}
+.upload{position:relative;overflow:hidden}
+.upload input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* ---------- Layout permainan ---------- */
+#game{min-height:100vh;padding:calc(10px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) calc(120px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+.topbar{display:flex;align-items:center;gap:8px;margin:0 auto 10px;max-width:1440px;flex-wrap:wrap}
+.topbar .mini{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:18px;letter-spacing:-.01em;flex:1;white-space:nowrap}
+.topbar .mini span{color:var(--red)}
+.cards-row{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 12px;margin:0 auto;max-width:1440px;scrollbar-width:thin}
+.pcard{flex:0 0 auto;width:178px;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:8px 10px 8px 8px;display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:center;box-shadow:0 3px 0 var(--ink);transition:transform .2s}
+.pcard.turn{transform:translateY(-4px);box-shadow:0 7px 0 var(--ink);background:#fff8dc}
+.pcard.dead{opacity:.45}
+.pcard .face{grid-row:span 2;width:38px;height:38px}
+.pcard b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcard .money{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pcard .money.neg{color:var(--red)}
+.pcard .meta{grid-column:1/-1;font-size:11px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap}
+.main{display:grid;gap:16px;max-width:1440px;margin:0 auto;grid-template-columns:minmax(0,1fr)}
+@media (min-width:980px){
+  .main{grid-template-columns:minmax(0,1fr) 360px;align-items:start}
+  #game{padding-bottom:20px}
+}
+
+/* ---------- Panggung 3D ---------- */
+.stage{position:relative;width:100%;height:min(74vh,112vw);min-height:320px;border:3px solid var(--ink);border-radius:18px;overflow:hidden;box-shadow:0 6px 0 var(--ink);background:#e6e2d6}
+@media (min-width:980px){.stage{height:calc(100vh - 150px);min-height:520px;position:sticky;top:10px}}
+.stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.stage-ui{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.stage-ui .btn{padding:.35rem .55rem;font-size:13px;box-shadow:0 2px 0 var(--ink)}
+.stage-ui .btn[aria-pressed=true]{background:var(--yellow)}
+.turnchip{position:absolute;left:10px;top:10px;background:var(--ink);color:#fff;border-radius:99px;padding:6px 14px 6px 6px;font-weight:700;display:flex;gap:8px;align-items:center;max-width:calc(100% - 130px);font-size:14px}
+.turnchip .face{width:26px;height:26px;border-width:2px;box-shadow:none;font-size:11px}
+.turnchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dice-read{position:absolute;left:10px;bottom:10px;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:4px 10px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 2px 0 var(--ink)}
+.no3d{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;font-weight:600}
+
+/* ---------- Panel samping & dock ---------- */
+.side{display:grid;gap:14px;min-width:0}
+.box{background:#fff;border:2px solid var(--ink);border-radius:14px;padding:14px;box-shadow:0 4px 0 var(--ink);min-width:0}
+.box h3{margin:0 0 10px;font-family:var(--display);font-weight:800;font-size:16px;text-transform:uppercase}
+.dock{display:grid;gap:10px}
+.dock .msg{font-weight:600;line-height:1.4}
+.dock .msg small{display:block;font-weight:500;color:var(--muted)}
+.dock .acts{display:flex;gap:8px;flex-wrap:wrap}
+.dock .acts .btn{flex:1 1 auto}
+.warn{background:#fde8e4;border:2px solid var(--red);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:600}
+@media (max-width:979px){
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;border-top:3px solid var(--ink);border-radius:18px 18px 0 0;box-shadow:0 -6px 20px rgba(0,0,0,.12);
+    padding:12px max(14px,env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+  .dock h3{display:none}
+}
+.hand{display:grid;gap:8px}
+.hcard{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;border:2px solid var(--ink);border-radius:12px;padding:8px 10px;background:linear-gradient(135deg,#e8f6ee,#fff)}
+.hcard .ic{font-size:26px;grid-row:span 2}
+.hcard.pendants{background:linear-gradient(135deg,#f3e8ff,#fff)}
+.hcard .pline{display:block;margin-top:3px}
+.hcard .pline em{font-style:normal;font-weight:800;color:var(--ink)}
+.pslots{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.pslot{width:38px;height:38px;border:2px dashed var(--line);border-radius:10px;display:grid;place-items:center;font-size:20px;color:var(--muted)}
+.pslot.on{border:2px solid var(--ink);background:#fff3c4}
+.pslots small{color:var(--muted);font-size:12px}
+.pend-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:300px;overflow:auto;padding:2px}
+.pend{display:grid;grid-template-columns:auto 1fr;gap:0 6px;text-align:left;border:2px solid var(--line);border-radius:10px;background:#fff;padding:6px 8px;font:inherit;cursor:pointer}
+.pend .ic{font-size:22px;grid-row:span 2}
+.pend b{font-size:12.5px}
+.pend small{font-size:11px;color:var(--muted);line-height:1.3}
+.pend[aria-pressed=true]{border-color:var(--ink);background:#fff3c4}
+.pend:disabled{opacity:.45;cursor:not-allowed}
+.parity{margin:6px 0;font-size:13px}
+#clock.late{background:var(--red);color:#fff}
+.turnchip .idle{font-style:normal;font-weight:800;font-size:12px;background:#fff3c4;color:var(--ink);border-radius:99px;padding:2px 8px;margin-left:4px}
+.turnchip .idle.late{background:var(--red);color:#fff}
+.posline{font-size:13px;color:var(--muted);margin-bottom:6px}
+.posline b{color:var(--ink)}
+.badge.team{color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.parity .chips{margin-top:4px}
+.parity small{display:block;color:var(--muted);margin-top:4px}
+.hcard b{font-size:14px}
+.hcard b em{font-style:normal;background:var(--ink);color:#fff;border-radius:6px;padding:0 6px;margin-left:4px;font-size:12px}
+.hcard small{grid-column:2;color:var(--muted);font-size:12px;line-height:1.35}
+.hcard .btn{grid-row:span 2}
+.props{display:grid;gap:6px}
+.prop{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:10px;padding:6px 8px;background:#fff;text-align:left;width:100%}
+.prop .sw{width:10px;align-self:stretch;border-radius:4px;flex:none}
+.prop b{flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prop span{font-size:12px;color:var(--muted);white-space:nowrap}
+.empty{color:var(--muted);font-size:13px;margin:0}
+.log{list-style:none;margin:0;padding:0;max-height:260px;overflow:auto;font-size:13px;display:grid;gap:5px}
+.log li{line-height:1.35;border-left:3px solid var(--line);padding-left:8px}
+.log li:first-child{border-color:var(--yellow);font-weight:600}
+
+/* ---------- Modal, toast, kartu besar ---------- */
+.modal{position:fixed;inset:0;z-index:55;background:rgba(20,20,24,.55);display:grid;place-items:center;padding:16px}
+.modal .panel{max-height:calc(100vh - 32px);overflow:auto;width:min(460px,100%)}
+.modal .panel.wide{width:min(720px,100%)}
+.modal h2{font-family:var(--display);font-weight:800;margin:0 0 4px;font-size:24px}
+.mband{height:14px;border-radius:6px;border:2px solid var(--ink);margin:0 0 12px}
+table.rent{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0 12px;font-variant-numeric:tabular-nums}
+table.rent td{padding:5px 0;border-bottom:1px solid var(--line)}
+table.rent td:last-child{text-align:right;font-weight:600}
+table.rent tr.cur td{background:#fff3c4}
+@media (max-width:480px){.pcard{width:156px;padding:6px 8px 6px 6px}.pcard .face{width:30px;height:30px}.pcard b,.pcard .money{font-size:12px}.topbar .mini{font-size:15px}}
+.pick-list{display:grid;gap:8px;margin:8px 0 4px}
+.pick-list button{display:flex;align-items:center;gap:10px;border:2px solid var(--ink);border-radius:12px;padding:8px 10px;background:#fff;text-align:left;width:100%}
+.pick-list button b{flex:1;min-width:0}
+.pick-list button small{color:var(--muted)}
+.pick-list h4{margin:6px 0 0;font-size:13px}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translate(-50%,-160%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;z-index:70;transition:transform .25s;max-width:calc(100% - 32px);text-align:center}
+#toast.on{transform:translate(-50%,0)}
+#toast.err{background:var(--red)}
+.bigcard{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:rgba(20,20,24,.5);animation:fade .25s}
+.bigcard .c{width:min(380px,100%);border-radius:20px;border:3px solid var(--ink);background:#fff;box-shadow:0 10px 0 var(--ink);overflow:hidden;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+.bigcard .c header{color:#fff;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:18px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;letter-spacing:.04em}
+.bigcard .c header small{font-family:var(--body);text-transform:none;font-weight:600;font-size:12px;opacity:.9;letter-spacing:0}
+.bigcard .c .ic{font-size:64px;text-align:center;padding:18px 0 0;line-height:1}
+.bigcard .c h2{font-family:var(--display);font-weight:800;font-size:26px;text-align:center;margin:8px 16px 0}
+.bigcard .c p{margin:0;padding:10px 20px 4px;font-size:16px;line-height:1.5;font-weight:500;text-align:center}
+.bigcard .c .who{display:flex;gap:8px;align-items:center;justify-content:center;color:var(--muted);font-size:13px;padding:6px 16px 0}
+.bigcard .c .who .face{width:24px;height:24px;border-width:2px;font-size:10px}
+.bigcard .c footer{display:grid;gap:8px;padding:16px}
+.bigcard .c footer .row .btn{flex:1 1 auto}
+.kind-kesempatan header{background:var(--green)} .kind-musibah header{background:var(--red)}
+.kind-event header{background:#b4530a} .kind-special header{background:#111;color:#ff5a47} .kind-gold header{background:linear-gradient(90deg,#b8860b,#e2b33c)}
+.kind-special{box-shadow:0 10px 0 #d9412f!important}
+.kind-ultra header{background:linear-gradient(90deg,#ff4d6d,#f4c21a,#2ecc71,#3a7bd5,#8e5bd6,#ff4d6d);background-size:300% 100%;animation:rainbow 2.5s linear infinite;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+.kind-ultra{box-shadow:0 10px 0 #b8860b,0 0 0 4px #f4c21a,0 0 60px 10px rgba(244,194,26,.75)!important;animation:pop .4s cubic-bezier(.2,1.4,.4,1),glow 1.6s ease-in-out infinite!important}
+.kind-ultra .ic{font-size:84px;animation:spin 1.2s ease-out}
+@keyframes rainbow{to{background-position:300% 0}}
+@keyframes glow{50%{box-shadow:0 10px 0 #b8860b,0 0 0 4px #fff3c4,0 0 90px 20px rgba(244,194,26,.9)}}
+@keyframes spin{from{transform:scale(.2) rotate(-540deg)}}
+#game.shake{animation:shake 1.5s cubic-bezier(.36,.07,.19,.97)}
+@keyframes shake{10%,90%{transform:translate(-3px,1px)}20%,80%{transform:translate(6px,-3px)}30%,50%,70%{transform:translate(-10px,4px) rotate(-.4deg)}40%,60%{transform:translate(10px,-4px) rotate(.4deg)}}
+.pcard.flash{animation:flash 1.2s ease-out}
+@keyframes flash{0%,40%{background:#c9f5d9;box-shadow:0 3px 0 var(--ink),0 0 0 4px #2ecc71}} .kind-special .ic{filter:drop-shadow(0 4px 0 rgba(217,65,47,.35))}
+.bigcard .c{max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.bigcard .c .cb{overflow:auto}
+.scope{display:block;width:max-content;margin:12px auto 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border:2px solid var(--ink);border-radius:99px;padding:2px 10px}
+.scope.all{background:var(--red);color:#fff;border-color:var(--red)}
+table.tiers{width:calc(100% - 32px);margin:10px 16px 0;border-collapse:separate;border-spacing:0 4px;font-size:14px}
+table.tiers td{padding:6px 8px;background:#f4f2ea;line-height:1.35}
+table.tiers td:first-child{white-space:nowrap;font-weight:800;border-radius:8px 0 0 8px;font-variant-numeric:tabular-nums}
+table.tiers td:last-child{border-radius:0 8px 8px 0}
+table.tiers tr.hit td{background:var(--yellow);font-weight:700}
+.roll{display:flex;gap:12px;align-items:center;justify-content:center;padding:12px 0 0;font-size:18px}
+.die1{width:54px;height:54px;background:#fff;border:3px solid var(--ink);border-radius:12px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:6px;box-shadow:0 3px 0 var(--ink)}
+.die1 i{width:10px;height:10px;border-radius:50%;background:var(--ink);align-self:center;justify-self:center;visibility:hidden}
+.die1 i.on{visibility:visible}
+.roll.rolling .die1{animation:shake1 .12s linear infinite}
+@keyframes shake1{0%{transform:rotate(-14deg)}50%{transform:rotate(14deg) translateY(-3px)}100%{transform:rotate(-14deg)}}
+.result{text-align:center;font-weight:700;margin:10px 16px 0!important;padding:0!important}
+/* Lembar tagihan / upgrade / travelling */
+.sheet{position:fixed;inset:0;z-index:45;background:rgba(20,20,24,.5);display:grid;place-items:center;padding:16px;animation:fade .2s}
+.sheet-card{background:#fff;border:3px solid var(--ink);border-radius:18px;box-shadow:0 8px 0 var(--ink);padding:20px;width:min(520px,100%);max-height:calc(100vh - 32px);overflow:auto;animation:pop .3s cubic-bezier(.2,1.4,.4,1)}
+.sheet-card h2{font-family:var(--display);font-weight:800;margin:0 0 6px;font-size:24px}
+.sheet-card .lead .face{width:24px;height:24px;border-width:2px;font-size:10px;display:inline-grid;vertical-align:middle}
+.bill-head{font-family:var(--display);font-weight:800;font-size:22px;margin-bottom:6px}
+.bill-amt{font-family:var(--display);font-weight:800;font-size:40px;color:var(--red);font-variant-numeric:tabular-nums;line-height:1}
+.bill-sub{color:var(--muted);margin:6px 0 12px;font-variant-numeric:tabular-nums}
+.assets{display:grid;gap:6px;margin:10px 0 4px}
+.asset{display:flex;align-items:center;gap:8px;border:2px solid var(--line);border-radius:10px;padding:6px 8px}
+.asset b{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sw{width:10px;align-self:stretch;border-radius:4px;flex:none;min-height:18px}
+.upg{display:grid;gap:8px;margin:8px 0}
+.booth{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0 8px}
+.booth .lv{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px 0;border:2px solid var(--ink);border-radius:12px;background:#fffdf6;font:inherit;cursor:pointer;overflow:hidden;min-width:0}
+.booth .lv b{font-size:12px;line-height:1.2;text-align:center}
+.booth .lv .ic{font-size:30px;line-height:1.2}
+.booth .lv small{min-height:16px;font-weight:800;color:var(--green)}
+.booth .lv i{align-self:stretch;font-style:normal;font-weight:800;font-size:12px;text-align:center;padding:5px 2px;background:var(--line)}
+.booth .lv.on,.booth .lv.must{background:#fff3c4;border-color:#b8860b}
+.booth .lv.on i,.booth .lv.must i{background:var(--yellow)}
+.booth .lv.own{opacity:.6;cursor:default}
+.booth .lv.lock{opacity:.45;cursor:not-allowed}
+.booth .lv.off{border-style:dashed}
+.booth-sum td:last-child{font-variant-numeric:tabular-nums}
+.opt{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;border:2px solid var(--ink);border-radius:12px;padding:10px}
+.opt .ic{font-size:28px;grid-row:span 2}
+.opt small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+.sheet-card .pays{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.opt .pays{grid-column:2;display:flex;gap:6px;flex-wrap:wrap}
+h3.sub{font-family:var(--display);font-size:16px;text-transform:uppercase;margin:14px 0 4px}
+.travel{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;max-height:50vh;overflow:auto}
+.travel h4{grid-column:1/-1;margin:8px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.travel button{display:flex;gap:6px;align-items:flex-start;text-align:left;border:2px solid var(--ink);border-radius:10px;background:#fff;padding:6px 8px}
+.travel button b{display:block;font-size:13px}
+.travel button small{display:block;color:var(--muted);font-size:11px}
+.hcard.gold{background:linear-gradient(135deg,#fff3c4,#fff)}
+.aim{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);width:min(520px,calc(100% - 24px));background:#fff;border:3px solid var(--ink);border-radius:16px;box-shadow:0 6px 0 var(--ink);padding:10px 12px;text-align:center;user-select:none;-webkit-user-select:none;z-index:5}
+.aim-head{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.aim-head span{color:var(--muted)}
+.aim-bar{display:grid;grid-template-columns:repeat(11,1fr);gap:3px}
+.aim-bar i{font-style:normal;font-weight:800;font-variant-numeric:tabular-nums;border:2px solid var(--line);border-radius:8px;padding:6px 0;background:#f4f2ea;transition:transform .05s}
+.aim-bar i.on{background:var(--yellow);border-color:var(--ink);transform:translateY(-4px) scale(1.12)}
+.aim-target{margin-top:8px;font-size:14px}
+.aim small{color:var(--muted)}
+[data-roll]{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.stats{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.stats span{font-size:12px;background:#f4f2ea;border-radius:8px;padding:3px 8px}
+.clock{position:absolute;right:10px;bottom:10px;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:4px 10px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 2px 0 var(--ink)}
+.festchip{position:absolute;left:10px;top:52px;background:linear-gradient(90deg,#e8405f,#f4c21a);color:#fff;border-radius:99px;padding:4px 12px;font-weight:800;font-size:13px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.stats .skill{flex-basis:100%;background:#fff3c4}
+.slot-card{text-align:center}
+.slot-reels{display:flex;justify-content:center;gap:10px;margin:12px 0}
+.reel{width:84px;height:96px;border:3px solid var(--ink);border-radius:14px;background:#fff;display:grid;place-items:center;font-size:48px;box-shadow:inset 0 -8px 0 #f4f2ea,0 4px 0 var(--ink)}
+.reel.spin span{animation:reelspin .08s linear infinite}
+@keyframes reelspin{50%{transform:translateY(-6px);filter:blur(1px)}}
+.slot-reels.win .reel{border-color:#d4a017;background:#fff3c4;animation:glow 1s ease-in-out infinite}
+.slot-result{font-size:18px;margin:8px 0}
+.crisis{position:absolute;left:10px;top:52px;background:#111;color:#ff5a47;border-radius:99px;padding:4px 12px;font-weight:800;font-size:13px;letter-spacing:.04em}
+@keyframes pop{from{transform:scale(.5) rotate(-8deg);opacity:0}}
+@keyframes fade{from{opacity:0}}
+.rank{list-style:none;padding:0;margin:0 0 16px;display:grid;gap:8px;counter-reset:r}
+.rank li{display:flex;gap:10px;align-items:center;border:2px solid var(--line);border-radius:12px;padding:8px 10px;counter-increment:r}
+.rank li::before{content:counter(r);font-family:var(--display);font-weight:800;font-size:20px;width:22px}
+.rank li:first-child{border-color:var(--ink);background:#fff3c4}
+.rank b{flex:1}
+.sound-ui{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:calc(12px + env(safe-area-inset-bottom));z-index:30;display:flex;gap:6px}
+.sound-ui .btn{width:40px;height:40px;padding:0;border-radius:50%;font-size:17px}
+.sound-ui .btn[aria-pressed=false],#btnMusic[aria-pressed=false],#btnFx[aria-pressed=false]{opacity:.5;text-decoration:line-through}
+#game:not([hidden]) ~ .sound-ui{display:none}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<script type="importmap">
+{ "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/addons/" } }
+</script>
+</head>
+<body>
+
+<!-- Gabung -->
+<section id="join" class="screen stripes" hidden>
+  <div class="panel wide">
+    <h1 class="brandmark">Juragan<span>Nusantara</span></h1>
+    <p class="lead">Beli tanah di kota-kota Indonesia, bangun rumah, buka tambang atau kebun sawit, lalu bertahanlah dari pungli, pajak, banjir, dan mafia tanah. Yang bertahan paling lama menang, meski sebenarnya semua sama-sama susah. 2–20 pemain di satu Wi-Fi, atau bersama bot.</p>
+    <div id="joinForm">
+      <label class="field"><span>Namamu</span><input type="text" id="nameIn" maxlength="16" placeholder="mis. Budi" autocomplete="off"></label>
+      <div class="field"><span>Avatar kamu</span><div id="joinEditor"></div></div>
+      <div class="row">
+        <button class="btn y" id="btnJoin">Gabung</button>
+        <button class="btn link" id="btnWatch">Tonton saja (layar TV)</button>
+      </div>
+    </div>
+    <div id="joinManage" hidden></div>
+    <div id="joinBusy" hidden>
+      <p class="lead"><b>Permainan sedang berjalan.</b> Pemain baru bisa ikut di ronde berikutnya. Sementara itu kamu bisa menonton.</p>
+      <button class="btn y" id="btnWatch2">Tonton permainan</button>
+    </div>
+  </div>
+</section>
+
+<!-- Lobi -->
+<section id="lobby" class="screen stripes" hidden>
+  <div class="panel wide">
+    <h1 class="brandmark">Juragan<span>Nusantara</span></h1>
+    <div class="join-grid">
+      <div>
+        <p class="lead" id="lobbyLead">Menunggu pemain lain…</p>
+        <div class="addr" id="lobbyAddr"></div>
+        <div class="field"><span>Mode permainan</span><div id="modeBox"></div></div>
+        <div class="field" id="pendantField" hidden><span>📿 Liontin avatarmu</span><div id="pendantBox"></div></div>
+        <ul class="lobby-list" id="lobbyList"></ul>
+        <div class="row" id="hostRow">
+          <button class="btn b" id="btnAddBot">🤖 Tambah bot</button>
+          <button class="btn y" id="btnStart">Mulai permainan</button>
+        </div>
+        <div class="row" style="margin-top:8px"><button class="btn link" id="btnLeave">Keluar dari lobi</button></div>
+      </div>
+      <div>
+        <div class="field"><span>Avatar kamu</span><div id="lobbyEditor"></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Permainan -->
+<section id="game" hidden>
+  <div class="topbar">
+    <div class="mini">Juragan <span>Nusantara</span></div>
+    <button class="btn sm" id="btnMusic" title="Musik latar">🎵</button>
+    <button class="btn sm" id="btnFx" title="Efek suara">🔊</button>
+    <button class="btn sm" id="btnAvatar">Avatar</button>
+    <button class="btn sm" id="btnAddr">Alamat</button>
+    <button class="btn sm" id="btnSurrender" hidden title="Keluar dari permainan; semua tanahmu jadi tanah kosong">🏳️ Menyerah</button>
+    <button class="btn sm r" id="btnHost" hidden title="Hanya muncul di laptop server">⏹ Akhiri</button>
+  </div>
+  <div class="cards-row" id="pcards"></div>
+  <div class="main">
+    <div class="stage" id="stage">
+      <div class="turnchip" id="turnchip"></div>
+      <div class="dice-read" id="diceRead" hidden></div>
+      <div class="aim" id="aim" hidden></div>
+      <div class="clock" id="clock" title="Lama permainan">⏱ 0:00</div>
+      <div class="festchip" id="festChip" hidden></div>
+      <div class="crisis" id="crisis" hidden title="Kartu Musibah Spesial sudah masuk tumpukan">☠️ Krisis</div>
+      <div class="stage-ui">
+        <button class="btn" id="camFollow" aria-pressed="false" title="Kamera mengikuti bidak yang sedang jalan">🎯 Ikuti</button>
+        <button class="btn" id="camTop" title="Lihat dari atas">⬇ Atas</button>
+        <button class="btn" id="camReset" title="Kembalikan kamera">⟲ Reset</button>
+      </div>
+    </div>
+    <aside class="side">
+      <div class="box dock" id="dock"><h3>Giliran</h3><div id="dockBody"></div></div>
+      <div class="box"><h3>Kartu & voucher</h3><div class="hand" id="hand"></div></div>
+      <div class="box"><h3>Properti saya</h3><div class="props" id="myProps"></div></div>
+      <div class="box"><h3>Catatan permainan</h3><ul class="log" id="log"></ul></div>
+    </aside>
+  </div>
+</section>
+
+<div class="sound-ui">
+  <button class="btn" id="btnMusic2" title="Musik latar">🎵</button>
+  <button class="btn" id="btnFx2" title="Efek suara">🔊</button>
+</div>
+<div class="sheet" id="sheet" hidden></div>
+<div class="sheet" id="slotm" hidden></div>
+<div class="modal" id="modal" hidden><div class="panel" id="modalBody"></div></div>
+<div id="bigcard" hidden></div>
+<div id="toast" role="status"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

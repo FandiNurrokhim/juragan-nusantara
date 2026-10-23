@@ -1,0 +1,25 @@
+{
+  "name": "juragan-nusantara",
+  "version": "1.0.0",
+  "description": "Permainan papan 3D jual-beli tanah kota Indonesia untuk 2-20 pemain (bisa dengan bot), real-time lewat Wi-Fi yang sama.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "sounds": "node tools/make-sounds.mjs",
+    "test": "node test/bots.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.8.1",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@breezystack/lamejs": "^1.2.7",
+    "socket.io-client": "^4.8.4"
+  }
+}
