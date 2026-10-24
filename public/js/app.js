@@ -189,7 +189,8 @@ function flashMoney() {
 let lastSlotSeq = null;
 function showSlot(ls) {
   const who = P(ls.player), mine = ls.player === me, N = W.normal;
-  if (!mine) { toast(`🎰 ${who ? who.name : ''}: ${ls.reels.join(' ')} ${ls.win ? '→ menang ' + rpS(ls.win) : '→ zonk'}`); return; }
+  const zonk = ls.kind ? ls.kind === 'zonk' : !ls.win;
+  if (!mine) { toast(`🎰 ${who ? who.name : ''}: ${ls.reels.join(' ')} ${zonk ? '→ zonk' : '→ menang ' + rpS(ls.win)}`); return; }
   const el = $('#slotm');
   el.hidden = false;
   el.innerHTML = `<div class="sheet-card slot-card"><h2>🎰 Mesin Game</h2>
@@ -200,7 +201,8 @@ function showSlot(ls) {
   const stopped = [false, false, false];
   const timers = [0, 1, 2].map(k => setInterval(() => {
     if (stopped[k]) return;
-    el.querySelector(`[data-r="${k}"] span`).textContent = N.slotSymbols[Math.floor(Math.random() * N.slotSymbols.length)];
+    const spin = N.slotWild ? [...N.slotSymbols, N.slotWild] : N.slotSymbols;
+    el.querySelector(`[data-r="${k}"] span`).textContent = spin[Math.floor(Math.random() * spin.length)];
   }, 80));
   const stop = k => {
     if (stopped[k]) return;
@@ -210,8 +212,8 @@ function showSlot(ls) {
     sound.play('click');
     if (stopped.every(Boolean)) {
       const res = el.querySelector('.slot-result'); res.hidden = false;
-      res.innerHTML = ls.win ? `🎉 Menang <b>${rp(ls.win)}</b>!` : 'Zonk. Coba lagi lain kali.';
-      if (ls.win) { sound.play('slotwin'); el.querySelector('.slot-reels').classList.add('win'); }
+      res.innerHTML = !zonk ? `🎉 ${ls.kind === 'jackpot' ? 'JACKPOT! ' : ''}Menang <b>${rp(ls.win)}</b>!` : ls.win ? `Zonk, tapi uang kembali <b>${rp(ls.win)}</b>.` : 'Zonk. Coba lagi lain kali.';
+      if (!zonk) { sound.play('slotwin'); el.querySelector('.slot-reels').classList.add('win'); }
       el.querySelector('[data-close]').hidden = false;
     }
   };
@@ -1078,9 +1080,9 @@ function renderSheet() {
       <div class="row" style="margin-top:12px"><button class="btn" data-fest-skip>Lewati</button></div>`;
   } else if (pend.type === 'slot') {
     const N = W.normal;
-    html = `<h2>🎰 Mesin Game</h2><p class="lead">Pilih taruhanmu, lalu hentikan 3 gulungan. Hadiah = taruhan × pengali: 2 simbol sama ×${N.slotPair}, 3 sama ×${N.slotTriple}, 7️⃣7️⃣7️⃣ ×${N.slotJackpot}.</p>
+    html = `<h2>🎰 Mesin Game</h2><p class="lead">Pilih taruhanmu, lalu hentikan 3 gulungan. ${N.slotWild ? `${N.slotWild} bintang dihitung sebagai simbol apa saja. ` : ''}Hadiah = taruhan × pengali: 2 sama ×${N.slotPair}, 3 sama ×${N.slotTriple}, 7️⃣7️⃣7️⃣ ×${N.slotJackpot}${N.slotRefund ? `, zonk tetap kembali ${Math.round(N.slotRefund * 100)}%` : ''}. Peluang menang sekitar 65%.</p>
       <div class="slot-reels idle">${N.slotSymbols.slice(0, 3).map(x => `<div class="reel"><span>${x}</span></div>`).join('')}</div>
-      <table class="rent"><tr><th>Taruhan</th><th>2 sama</th><th>3 sama</th><th>7️⃣7️⃣7️⃣</th></tr>${N.slotBets.map(b => `<tr><td>${rpS(b)}</td><td>${rpS(b * N.slotPair)}</td><td>${rpS(b * N.slotTriple)}</td><td>${rpS(b * N.slotJackpot)}</td></tr>`).join('')}</table>
+      <table class="rent"><tr><th>Taruhan</th><th>Zonk</th><th>2 sama</th><th>3 sama</th><th>7️⃣7️⃣7️⃣</th></tr>${N.slotBets.map(b => `<tr><td>${rpS(b)}</td><td>${rpS(b * (N.slotRefund || 0))}</td><td>${rpS(b * N.slotPair)}</td><td>${rpS(b * N.slotTriple)}</td><td>${rpS(b * N.slotJackpot)}</td></tr>`).join('')}</table>
       <div class="row" style="margin-top:12px">${N.slotBets.map(b => `<button class="btn y" data-slot="1" data-bet="${b}" ${p.money < b ? 'disabled' : ''}>🎰 ${rpS(b)}</button>`).join('')}<button class="btn" data-slot="0">Lewati</button></div>`;
   } else if (pend.type === 'takeover') {
     const t = W.board[pend.tile], o = P(S.props[pend.tile].owner);
@@ -1219,6 +1221,12 @@ function rentNow(i) {
     : t.rent[pr.houses] * (group.every(j => S.props[j].owner === pr.owner) ? 2 : 1);
   if (S.festival && S.festival.tile === i) r *= S.festival.mult;
   if (pr.slump) r *= W.normal.slumpMult;
+  // sama dengan server: liontin Pemandu Wisata (sewa wisata) dan skill pemilik yang menaikkan sewa (Pejabat)
+  const o = P(pr.owner);
+  if (o && isNormal()) {
+    if (t.type === 'tourism') r *= 1 + pmodC(o, 'tourismRent');
+    r *= statFor(modelOfP(o)).rentMult || 1;
+  }
   return Math.round(r / 1000) * 1000;
 }
 const buildLabel = i => { const h = S.props[i].houses; return isNormal() ? (h ? levelName(h) : 'tanah') : h === 5 ? 'hotel' : h ? h + ' rumah' : 'tanah kosong'; };

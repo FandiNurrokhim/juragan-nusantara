@@ -412,7 +412,8 @@ function calcRent(i) {
   const f = game.festival && game.festival.tile === i ? game.festival.mult : 1;
   if (game.props[i] && game.props[i].blackout) return 0; // petak padam: bebas sewa
   const slump = game.props[i] && game.props[i].slump ? NORMAL.slumpMult : 1;
-  return Math.round(baseRent(i) * f * slump / 1000) * 1000;
+  const owner = game.props[i] && P(game.props[i].owner), sm = owner ? skillData(owner).rentMult || 1 : 1; // skill pemilik yang menaikkan sewa
+  return Math.round(baseRent(i) * f * slump * sm / 1000) * 1000;
 }
 function baseRent(i) {
   const t = BOARD[i], pr = game.props[i];
@@ -500,7 +501,12 @@ function paySalary(p) {
   for (const i of ownedBy(p.id)) if (game.props[i].grace > 0) game.props[i].grace--;
   const base = isNormal() ? NORMAL.salary + (skillOf(p) === 'panen' ? skillData(p).amount : 0) : SALARY + n * LAND.income;
   receive(p, base, n ? `gaji + hasil ${n} tambang/kebun sawit` : skillOf(p) === 'panen' ? 'gaji + 🌾 Panen Raya' : 'gaji satu putaran');
-  if (skillOf(p) === 'panen') skillBadge(p);
+  if (skillOf(p) === 'panen') {
+    skillBadge(p);
+    const up = ownedBy(p.id).filter(i => BOARD[i].type === 'city' && !game.props[i].mortgaged && !game.props[i].lease && game.props[i].houses < 3 && !isBiz(game.props[i].use))
+      .sort((a, b) => BOARD[b].price - BOARD[a].price)[0];
+    if (up != null && isNormal()) { const pr = game.props[up]; pr.houses++; pr.use = 'properti'; fx('build'); log(`🌾 Panen Raya: ${BOARD[up].name} milik ${p.name} naik jadi ${levelName(pr.houses)} gratis`); }
+  }
   notice({ type: 'payday', to: p.id, amount: base });
   if (p.loan > 0) {
     const amt = Math.min(BANK.loanRepay, p.loan);
@@ -573,7 +579,7 @@ function offerTakeover(p, i) {
   game.pending = { type: 'takeover', tile: i, price, value: assetValue(i), ...(thenTravel ? { thenTravel } : {}) };
 }
 // Harga ambil alih = 2x nilai tanah + bangunan (skill Raja Akuisisi 1,5x, dan hanya dia yang bisa mengambil alih Landmark).
-const takeoverPrice = (p, i) => Math.round(assetValue(i) * (skillOf(p) === 'nego' ? NORMAL.negoMult : NORMAL.takeoverMult) / 1000) * 1000;
+const takeoverPrice = (p, i) => Math.round(assetValue(i) * (skillOf(p) === 'nego' ? (game.props[i].houses >= 5 ? NORMAL.negoLandmarkMult : NORMAL.negoMult) : NORMAL.takeoverMult) / 1000) * 1000;
 const isOthersLand = (p, i) => isBuyable(i) && game.props[i].owner && game.props[i].owner !== p.id;
 // Skill yang aktif saat bidak melewati lawan (Seret Lawan, Tarik Setoran, Colong Duit).
 // Colong Duit juga berlaku untuk lawan di petak tujuan (bukan hanya yang dilewati).
@@ -626,7 +632,7 @@ function resolveTile(p) {
       if (owner && !owner.bankrupt) {
         let amount = calcRent(i), note = '';
         if (skillOf(owner) === 'gentayangan' && skillHit(owner)) { const m = skillData(owner).mult || 2; skillBadge(owner); amount = Math.round(amount * m / 1000) * 1000; note = ` (👻 digentayangi, sewa ${String(m).replace('.', ',')}×)`; }
-        if (skillOf(p) === 'teror' && skillHit(p)) { skillBadge(p); log(`👾 ${p.name} meneror ${owner.name}, sewa ${t.name} tidak dibayar`); fx('seize'); return; }
+        if (skillOf(p) === 'teror' && skillHit(p)) { skillBadge(p); log(`👾 ${p.name} meneror ${owner.name}, sewa ${t.name} tidak dibayar`); fx('seize'); offerTakeover(p, i); return; } // tawaran ambil alih tetap muncul
         if (skillOf(p) === 'mulus' && skillHit(p)) { skillBadge(p); amount = Math.round(amount / 2 / 1000) * 1000; note += ' (🐾 mendarat mulus, sewa ½)'; }
         game.pending = { type: 'bill', tile: i, to: owner.id, amount, reason: 'Sewa ' + t.name };
         log(`${p.name} berhenti di tanah milik ${owner.name}: sewa ${rp(amount)}${note}`);
@@ -1516,15 +1522,21 @@ const actions = {
     const bet = NORMAL.slotBets.includes(Number(d.bet)) ? Number(d.bet) : NORMAL.slotBet;
     if (p.money < bet) fail(`Uangmu kurang untuk taruhan (${rp(bet)}).`);
     pay(p, null, bet, 'taruhan Mesin Game');
-    const sym = NORMAL.slotSymbols, reels = [0, 1, 2].map(() => pick(sym));
+    const sym = NORMAL.slotSymbols, WILD = NORMAL.slotWild, seven = sym[sym.length - 1];
+    const reels = [0, 1, 2].map(() => (chance(NORMAL.slotWildChance) ? WILD : pick(sym)));
     if (reels[0] !== reels[1] && chance(pmod(p, 'slotLuck'))) { reels[1] = reels[0]; log(`${pmodTag(p, 'slotLuck')} membantu ${p.name} di Mesin Game`); }
-    const same = Math.max(...reels.map(r => reels.filter(x => x === r).length));
-    const mult = same === 3 ? (reels[0] === sym[sym.length - 1] ? NORMAL.slotJackpot : NORMAL.slotTriple) : same === 2 ? NORMAL.slotPair : 0;
+    // Bintang mengisi simbol apa saja: hitung simbol terbanyak (utamakan 7) lalu tambah jumlah bintang
+    const wilds = reels.filter(r => r === WILD).length, counts = {};
+    reels.filter(r => r !== WILD).forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1] || (a[0] === seven ? -1 : 1))[0];
+    const match = (best ? best[1] : 0) + wilds;
+    const kind = match >= 3 ? (wilds === 3 || best[0] === seven ? 'jackpot' : 'triple') : match === 2 ? 'pair' : 'zonk';
+    const mult = { jackpot: NORMAL.slotJackpot, triple: NORMAL.slotTriple, pair: NORMAL.slotPair, zonk: NORMAL.slotRefund }[kind];
     const win = Math.round(bet * mult / 1000) * 1000;
-    if (win) receive(p, win, 'Mesin Game');
-    game.lastSlot = { seq: (game.lastSlot ? game.lastSlot.seq : 0) + 1, player: p.id, reels, win, bet };
+    if (win) receive(p, win, kind === 'zonk' ? 'uang kembali Mesin Game' : 'Mesin Game');
+    game.lastSlot = { seq: (game.lastSlot ? game.lastSlot.seq : 0) + 1, player: p.id, reels, win, bet, kind };
     fx('slot');
-    log(`🎰 ${p.name} main Mesin Game: ${reels.join(' ')} ${win ? '→ menang ' + rp(win) : '→ zonk'}`);
+    log(`🎰 ${p.name} main Mesin Game: ${reels.join(' ')} ${kind === 'zonk' ? `→ zonk, uang kembali ${rp(win)}` : `→ ${kind === 'jackpot' ? 'JACKPOT! ' : ''}menang ${rp(win)}`}`);
   },
   // 🕴️ Ambil Alih (skill Manusia): beli paksa tanah lawan tanpa bangunan seharga 2x harga.
   takeover(p, d) {

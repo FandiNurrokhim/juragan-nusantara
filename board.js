@@ -285,7 +285,8 @@ const NORMAL = {
   startMoney: 1500 * K,         // semua avatar mulai dengan modal yang sama: Rp 15 jt
   salary: 500 * K,              // gaji Rp 5 jt tiap melewati Mulai (cukup untuk saling serobot properti)
   takeoverMult: 2,              // ambil alih properti lawan (belum Landmark) = 2x nilai tanah + bangunan
-  negoMult: 1.5,                // skill Negosiator: ambil alih cukup 1,5x
+  negoMult: 1.7,                // skill Raja Akuisisi: ambil alih cukup 1,7x
+  negoLandmarkMult: 2.5,        // ... tapi mengambil alih Landmark 2,5x
   slumpMult: 0.5,               // kartu Sabotase: sewa jadi 50% ...
   slumpTurns: 3,                // ... selama 3 giliran pemiliknya
   leaseTurns: 3,                // kartu Kontrak Sementara: properti lawan jadi milikmu 3 giliranmu
@@ -295,10 +296,14 @@ const NORMAL = {
   landmarkHouses: 2,            // harga Landmark = 2x harga 1 bangunan (total tetap setara 5 rumah)
   slotBet: 30 * K,              // taruhan terkecil Mesin Game Rp 300 rb
   slotBets: [30 * K, 100 * K, 300 * K], // pilihan taruhan: Rp 300 rb, 1 jt, 3 jt; hadiah = taruhan x pengali
-  slotSymbols: ['🍉', '🌶️', '🥥', '🎋', '🦅', '7️⃣'],
-  slotPair: 1.5,                // 2 simbol sama: hadiah 1,5x taruhan
-  slotTriple: 10,               // 3 simbol sama: 10x taruhan
-  slotJackpot: 25,              // 3 angka 7: 25x taruhan
+  // Peluang (dihitung dari 600 rb putaran simulasi): menang 65%, 3 sama 10,6%, jackpot 2,2%, rata-rata kembali ~1,15x taruhan.
+  slotSymbols: ['🍉', '🌶️', '🥥', '🦅', '7️⃣'],
+  slotWild: '⭐',               // simbol bintang: dihitung sebagai simbol apa saja
+  slotWildChance: 0.1,          // peluang tiap gulungan menjadi bintang
+  slotPair: 1.2,                // 2 simbol sama: hadiah 1,2x taruhan
+  slotTriple: 3,                // 3 simbol sama: 3x taruhan
+  slotJackpot: 8,               // 3 angka 7 (atau 3 bintang): 8x taruhan
+  slotRefund: 0.2,              // zonk: 20% taruhan dikembalikan
   maxPendants: 4,               // liontin yang bisa dipasang tiap avatar (daftar di pendants.json)
   parityPrice: 300 * K          // beli 1x jatah dadu Ganjil-Genap
 };
@@ -345,9 +350,9 @@ const NORMAL_KESEMPATAN = [
   { title: 'Diskon Pembangunan', icon: '🏷️', text: 'Dapat 1 voucher diskon 50% untuk membangun atau mengambil alih kota lawan.', effects: [{ type: 'voucher' }] },
   { title: 'Diskon Ambil Alih', icon: '🏷️', text: 'Dapat 1 voucher diskon 50% untuk membangun atau mengambil alih kota lawan.', effects: [{ type: 'voucher' }] },
   { power: 'bebaspajak' },
-  { title: 'Hadiah Emas', icon: '🪙', text: 'Dapat suntikan modal emas. Terima Rp 2.000.000.', effects: [{ type: 'receive', amount: 200 }] },
-  { title: 'Dividen Bank', icon: '🏦', text: 'Bank membagikan dividen. Terima Rp 1.000.000.', effects: [{ type: 'receive', amount: 100 }] },
-  { title: 'Ulang Tahun', icon: '🎂', text: 'Hari ini ulang tahunmu! Terima Rp 200.000 dari setiap pemain.', effects: [{ type: 'collectEach', amount: 20 }] },
+  { title: 'Hadiah Emas', icon: '🪙', text: 'Dapat suntikan modal emas. Terima Rp 10.000.000.', effects: [{ type: 'receive', amount: 1000 }] },
+  { title: 'Dividen Bank', icon: '🏦', text: 'Bank membagikan dividen. Terima Rp 15.000.000.', effects: [{ type: 'receive', amount: 1500 }] },
+  { title: 'Ulang Tahun', icon: '🎂', text: 'Hari ini ulang tahunmu! Terima Rp 500.000 dari setiap pemain.', effects: [{ type: 'collectEach', amount: 50 }] },
   // --- Serangan & pertahanan ---
   { power: 'gempa' }, { power: 'wabah' }, { power: 'panggil' }, { power: 'tukar' },
   { power: 'sabotase' }, { power: 'akuisisi' }, { power: 'kontrak' },
@@ -363,17 +368,17 @@ const NORMAL_KESEMPATAN = [
 // Stat dasar sama untuk semua avatar (diskon tanah 5%, diskon bangun 5%, kontrol dadu 15%) supaya yang menentukan
 // adalah cara bermain. Skill diseimbangkan dari hasil uji ratusan giliran bot: yang terlalu kuat dikurangi, yang lemah dikuatkan.
 const NORMAL_AVATARS = {
-  manusia:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'nego', icon: '🤝', name: 'Raja Akuisisi', desc: 'Satu-satunya yang bisa mengambil alih Landmark lawan. Ambil alih apa pun cukup 1,5× nilainya (pemain lain 2×).' },
-  pejabat:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'proyek', chance: 0.9, landChance: 0.8, icon: '🏗️', name: 'Proyek Titipan', desc: '90% peluang bangunan yang kamu bangun gratis. Beli tanah tanpa bangunan: 80% peluang tanahnya setengah harga.' },
-  kepalasawit: { land: 0.05, build: 0.05, dice: 0.15, skill: 'panen', amount: 400 * K, icon: '🌾', name: 'Panen Raya', desc: 'Gaji +Rp 4 jt setiap melewati Mulai.' },
+  manusia:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'nego', icon: '🤝', name: 'Raja Akuisisi', desc: 'Satu-satunya yang bisa mengambil alih Landmark lawan (2,5× nilainya). Ambil alih kota lain cukup 1,7× (pemain lain 2×).' },
+  pejabat:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'proyek', chance: 0.9, landChance: 1, rentMult: 1.2, icon: '🏗️', name: 'Proyek Titipan', desc: 'Semua sewa propertimu +20%. 90% peluang bangunan yang kamu bangun gratis, dan beli tanah tanpa bangunan selalu setengah harga.' },
+  kepalasawit: { land: 0.05, build: 0.05, dice: 0.15, skill: 'panen', amount: 500 * K, icon: '🌾', name: 'Panen Raya', desc: 'Setiap melewati Mulai: gaji +Rp 5 jt dan satu kotamu naik 1 tingkat gratis (sampai Kabupaten).' },
   komodo:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'seret', chance: 0.15, icon: '🪢', name: 'Seret Lawan', desc: '15% peluang menyeret lawan yang kamu lewati ke propertimu dengan sewa termahal, dan dia langsung membayar sewanya (paling banyak 1 lawan per giliran).' },
   ayam:        { land: 0.05, build: 0.05, dice: 0.15, skill: 'kokok', chance: 0.45, icon: '🐓', name: 'Kokok Pagi', desc: '45% peluang boleh melempar dadu sekali lagi setelah berjalan (sekali per giliran).' },
-  kucing:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'mulus', chance: 0.6, icon: '🐾', name: 'Mendarat Mulus', desc: '60% peluang sewa yang kamu bayar hanya setengah.' },
+  kucing:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'mulus', chance: 0.75, icon: '🐾', name: 'Mendarat Mulus', desc: '75% peluang sewa yang kamu bayar hanya setengah.' },
   pesawat:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'jalan', chance: 0.35, icon: '✈️', name: 'Terbang Bebas', desc: '35% peluang dapat Travelling setelah berhenti di petak yang tidak menagihmu, termasuk setelah membeli atau membangun. Setelah terbang, istirahat 1 giliran.' },
-  angkot:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'setoran', amount: 60 * K, icon: '🚐', name: 'Tarik Setoran', desc: 'Terima Rp 600 rb dari setiap lawan yang kamu lewati.' },
-  pocong:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'gentayangan', chance: 0.85, mult: 2.5, icon: '👻', name: 'Gentayangan', desc: '85% peluang lawan yang berhenti di tanahmu membayar sewa 2,5×.' },
-  tuyul:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'colong', chance: 0.9, pct: 0.12, cap: 150 * K, icon: '👶', name: 'Colong Duit', desc: '90% peluang mencuri 12% uang lawan yang kamu lewati atau yang ada di petak tempatmu berhenti (maks Rp 1,5 jt).' },
-  monster:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'teror', chance: 0.45, icon: '👾', name: 'Teror', desc: '45% peluang tidak membayar sewa di tanah lawan.' }
+  angkot:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'setoran', amount: 120 * K, icon: '🚐', name: 'Tarik Setoran', desc: 'Terima Rp 1,2 jt dari setiap lawan yang kamu lewati.' },
+  pocong:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'gentayangan', chance: 0.75, mult: 2, icon: '👻', name: 'Gentayangan', desc: '75% peluang lawan yang berhenti di tanahmu membayar sewa 2×.' },
+  tuyul:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'colong', chance: 0.8, pct: 0.12, cap: 150 * K, icon: '👶', name: 'Colong Duit', desc: '80% peluang mencuri 12% uang lawan yang kamu lewati atau yang ada di petak tempatmu berhenti (maks Rp 1,5 jt).' },
+  monster:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'teror', chance: 0.75, icon: '👾', name: 'Teror', desc: '75% peluang tidak membayar sewa di tanah lawan.' }
 };
 
 const BOT_NAMES = ['Bot Joko', 'Bot Siti', 'Bot Ucok', 'Bot Made', 'Bot Rina', 'Bot Asep', 'Bot Dewi', 'Bot Bambang',
