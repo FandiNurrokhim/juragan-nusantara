@@ -569,6 +569,7 @@ function resumeTravel(pend, p) {
   game.pending = { type: 'travel' };
   log(`✈️ ${p.name} lanjut travelling, bebas pilih tujuan`);
 }
+const redeemCost = i => Math.round((game.props[i].mortgageValue || BOARD[i].price / 2) * 1.1);
 function offerTakeover(p, i) {
   const pr = game.props[i], o = pr && P(pr.owner);
   if (!isNormal() || !o || o.id === p.id || sameTeam(o, p) || pr.lease || BOARD[i].type !== 'city' || (pr.houses >= 5 && skillOf(p) !== 'nego')) return;
@@ -576,7 +577,8 @@ function offerTakeover(p, i) {
   if (p.money < price && !(p.vouchers > 0 && p.money >= Math.round(price / 2 / 1000) * 1000)) return;
   // Travelling (mis. dari Tiket Pesawat) tidak batal: ditunda sampai keputusan ambil alih selesai.
   const thenTravel = !!(game.pending && game.pending.type === 'travel');
-  game.pending = { type: 'takeover', tile: i, price, value: assetValue(i), ...(thenTravel ? { thenTravel } : {}) };
+  // Tanah yang digadai: sebagian harga dipakai menebus gadai ke bank, sisanya ke pemilik
+  game.pending = { type: 'takeover', tile: i, price, value: assetValue(i), ...(pr.mortgaged ? { redeem: Math.min(price, redeemCost(i)) } : {}), ...(thenTravel ? { thenTravel } : {}) };
 }
 // Harga ambil alih = 2x nilai tanah + bangunan (skill Raja Akuisisi 1,5x, dan hanya dia yang bisa mengambil alih Landmark).
 const takeoverPrice = (p, i) => Math.round(assetValue(i) * (skillOf(p) === 'nego' ? (game.props[i].houses >= 5 ? NORMAL.negoLandmarkMult : NORMAL.negoMult) : NORMAL.takeoverMult) / 1000) * 1000;
@@ -627,6 +629,9 @@ function resolveTile(p) {
     } else if (pr.blackout) {
       log(`⚡ ${t.name} sedang padam, ${p.name} bebas sewa`);
       if (!pr.mortgaged) offerTakeover(p, i); // tetap boleh diambil alih walau padam
+    } else if (pr.mortgaged) {
+      log(`🏦 ${t.name} sedang digadai ke bank, ${p.name} bebas sewa`);
+      offerTakeover(p, i); // boleh ditebus dari bank lalu langsung diambil alih
     } else if (pr.owner !== p.id && !pr.mortgaged) {
       const owner = P(pr.owner);
       if (owner && !owner.bankrupt) {
@@ -1553,7 +1558,14 @@ const actions = {
     game.pending = null;
     if (d.voucher) p.vouchers--;
     pend.price = price;
-    pay(p, o, pend.price, 'ambil alih ' + BOARD[i].name);
+    if (pr.mortgaged) {
+      // tebus gadai ke bank dulu, sisanya untuk pemilik lama
+      const red = Math.min(pend.price, redeemCost(i));
+      pay(p, null, red, 'tebus gadai ' + BOARD[i].name);
+      pay(p, o, pend.price - red, 'ambil alih ' + BOARD[i].name);
+      pr.mortgaged = false; pr.mortgageValue = 0;
+      log(`🏦 ${p.name} menebus gadai ${BOARD[i].name} dari bank (${rp(red)})`);
+    } else pay(p, o, pend.price, 'ambil alih ' + BOARD[i].name);
     pr.owner = p.id;
     if (pr.blackout) { delete pr.blackout; tileFx(i, 'restore'); log(`💡 Listrik ${BOARD[i].name} menyala lagi setelah diambil alih`); }
     pendantHook(o, 'takenOver', { amount: pend.price });
@@ -1743,7 +1755,10 @@ const actions = {
     }
     else if (card === 'angel' || card === 'bebassewa') {
       if (!pend || pend.type !== 'bill' || !pend.to) fail(`${def.name} dipakai saat ada tagihan sewa.`);
-      run = () => { game.pending = null; log(`${def.icon} ${def.name} membebaskan ${p.name} dari ${pend.reason.toLowerCase()}`); };
+      run = () => {
+        game.pending = null; log(`${def.icon} ${def.name} membebaskan ${p.name} dari ${pend.reason.toLowerCase()}`);
+        if (pend.tile != null) offerTakeover(p, pend.tile); // tawaran ambil alih tetap muncul walau sewanya dibebaskan
+      };
     } else if (card === 'wabah' || card === 'panggil') {
       const t = P(d.target);
       if (!t || t.bankrupt || t.id === p.id) fail('Pilih lawan.');

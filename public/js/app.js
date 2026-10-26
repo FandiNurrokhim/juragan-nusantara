@@ -1087,9 +1087,10 @@ function renderSheet() {
   } else if (pend.type === 'takeover') {
     const t = W.board[pend.tile], o = P(S.props[pend.tile].owner);
     const pr = S.props[pend.tile], value = pend.value || t.price, build = value - t.price, mult = Math.round(pend.price / value * 10) / 10;
-    html = `<h2>🕴️ Ambil alih ${esc(t.name)}?</h2><p class="lead">${pr.blackout ? "⚡ Listrik di sini sedang padam, jadi kamu bebas sewa. Kalau diambil alih, listriknya langsung menyala lagi." : "Sewa sudah dibayar."} Mau membeli paksa ${esc(t.name)}${pr.houses ? ` beserta ${esc(buildLabel(pend.tile))}-nya` : ''} dari <b>${esc(o ? o.name : '')}</b>? Uangnya dibayar ke ${esc(o ? o.name : '')}.</p>
+    html = `<h2>🕴️ Ambil alih ${esc(t.name)}?</h2><p class="lead">${pr.mortgaged ? "🏦 Tanah ini sedang digadai ke bank, jadi kamu bebas sewa. Kamu bisa menebusnya dari bank lalu langsung mengambil alih, dan setelah itu langsung membangun." : pr.blackout ? "⚡ Listrik di sini sedang padam, jadi kamu bebas sewa. Kalau diambil alih, listriknya langsung menyala lagi." : "Sewa sudah dibayar."} Mau membeli paksa ${esc(t.name)}${pr.houses ? ` beserta ${esc(buildLabel(pend.tile))}-nya` : ''} dari <b>${esc(o ? o.name : '')}</b>?${pend.redeem ? '' : ` Uangnya dibayar ke ${esc(o ? o.name : '')}.`}</p>
       <table class="rent"><tr><td>Harga tanah</td><td>${rp(t.price)}</td></tr>${build > 0 ? `<tr><td>Bangunan (${esc(buildLabel(pend.tile))})</td><td>${rp(build)}</td></tr>` : ''}
-        <tr><td>Nilai properti</td><td>${rp(value)}</td></tr><tr class="cur"><td>Harga ambil alih (×${String(mult).replace('.', ',')})</td><td>${rp(pend.price)}</td></tr></table>
+        <tr><td>Nilai properti</td><td>${rp(value)}</td></tr><tr class="cur"><td>Harga ambil alih (×${String(mult).replace('.', ',')})</td><td>${rp(pend.price)}</td></tr>
+        ${pend.redeem ? `<tr><td>· untuk tebus gadai ke bank</td><td>${rp(pend.redeem)}</td></tr><tr><td>· untuk ${esc(o ? o.name : 'pemilik')}</td><td>${rp(pend.price - pend.redeem)}</td></tr>` : ''}</table>
       <p class="bill-sub">Uangmu ${rp(p.money)}</p>
       <div class="row" style="margin-top:12px"><button class="btn g" data-take="1" ${p.money < pend.price ? 'disabled' : ''}>Ya, ambil alih ${rpS(pend.price)}</button>
       ${p.vouchers ? `<button class="btn b" data-take="v" ${p.money < pend.price / 2 ? 'disabled' : ''}>🏷️ Pakai voucher ${rpS(pend.price / 2)}</button>` : ''}
