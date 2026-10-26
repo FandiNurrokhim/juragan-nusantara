@@ -94,7 +94,7 @@ function face(p, cls = 'face') {
 /* ---------- Event dari state (suara, animasi, kartu) ---------- */
 function afterMoves(fn) { if (board3d) board3d.whenIdle(fn); else fn(); }
 // Toast kecil saat skill avatar atau liontinku aktif, supaya terasa (dibaca dari catatan permainan).
-const SKILL_LOG = { proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
+const SKILL_LOG = { lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
   gentayangan: /digentayangi/, colong: /dicolong tuyul/, teror: /meneror/, panen: /Panen Raya/ };
 function announceMyEffects(prev) {
   const p = meP(); if (!p) return;
@@ -457,10 +457,17 @@ function renderPendantPicker(p) {
   box.hidden = !isNormal() || !(W.pendants || []).length;
   if (box.hidden) return;
   const mine = p.pendants || [], max = W.normal.maxPendants;
+  // Rekomendasi liontin untuk avatar yang sedang dipilih
+  const av = W.normalAvatars[modelOfP(p)] || {}, rec = (av.recommend || []).filter(id => (W.pendants || []).some(x => x.id === id));
+  const recSet = new Set(rec), recOn = rec.length && rec.every(id => mine.includes(id));
+  const recHtml = rec.length ? `<div class="prec"><div><b>⭐ Cocok untuk ${av.icon || ''} ${esc(av.name || '')}:</b> ${rec.map(id => { const x = W.pendants.find(y => y.id === id); return `<span>${x.icon} ${esc(x.name)}</span>`; }).join('')}</div>
+      <small>${esc(av.recWhy || '')}</small>
+      <button class="btn sm y" data-prec ${recOn ? 'disabled' : ''}>${recOn ? '✔ Rekomendasi terpasang' : 'Pasang rekomendasi'}</button></div>` : '';
   const slots = Array.from({ length: max }, (_, k) => { const x = (W.pendants || []).find(y => y.id === mine[k]); return `<span class="pslot${x ? ' on' : ''}" title="${x ? esc(x.name) : 'kosong'}">${x ? x.icon : '＋'}</span>`; }).join('');
-  if (!setHtml($('#pendantBox'), `<div class="pslots">${slots}<small>${mine.length}/${max} terpasang · ketuk untuk pasang/lepas</small></div>
-    <div class="pend-grid">${W.pendants.map(x => `<button class="pend" data-pend="${esc(x.id)}" aria-pressed="${mine.includes(x.id)}" ${!mine.includes(x.id) && mine.length >= max ? 'disabled' : ''}>
-      <span class="ic">${x.icon}</span><b>${esc(x.name)}</b><small>${esc(x.desc)}</small></button>`).join('')}</div>`)) return;
+  if (!setHtml($('#pendantBox'), recHtml + `<div class="pslots">${slots}<small>${mine.length}/${max} terpasang · ketuk untuk pasang/lepas</small></div>
+    <div class="pend-grid">${W.pendants.map(x => `<button class="pend${recSet.has(x.id) ? ' rec' : ''}" data-pend="${esc(x.id)}" aria-pressed="${mine.includes(x.id)}" ${!mine.includes(x.id) && mine.length >= max ? 'disabled' : ''}>
+      <span class="ic">${x.icon}</span><b>${recSet.has(x.id) ? '⭐ ' : ''}${esc(x.name)}</b><small>${esc(x.desc)}</small></button>`).join('')}</div>`)) return;
+  $('#pendantBox').querySelectorAll('[data-prec]').forEach(b => b.onclick = () => emit('setPendants', { ids: rec.slice(0, max) }));
   $('#pendantBox').querySelectorAll('[data-pend]').forEach(b => b.onclick = () => {
     const id = b.dataset.pend, cur = (meP().pendants || []).slice();
     emit('setPendants', { ids: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] });
@@ -579,6 +586,9 @@ function renderDock() {
     } else if (pend && pend.type === 'bill') {
       html += `<div class="msg">🧾 Tagihan: ${esc(pend.reason)}<small>${pend.to ? 'Ke ' + esc((P(pend.to) || {}).name || '') + ' · ' : ''}${rp(pend.amount)}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Lihat tagihan</button>`);
+    } else if (pend && pend.type === 'ojolStep') {
+      html += `<div class="msg">🛵 Antar Jemput<small>Dadu ${pend.sum}. Pilih maju ${pend.sum - 1}, ${pend.sum}, atau ${pend.sum + 1} petak.</small></div>`;
+      acts.push(`<button class="btn y" data-sheet>Pilih langkah</button>`);
     } else if (pend && pend.type === 'startBuild') {
       html += `<div class="msg">🏁 Tepat di Mulai!<small>Boleh membangun di salah satu propertimu.</small></div>`;
       acts.push(`<button class="btn g" data-sheet>Pilih properti</button>`, `<button class="btn" data-act="skip">Lewati</button>`);
@@ -591,6 +601,9 @@ function renderDock() {
         : ['🕴️ Ambil alih?', `${esc(W.board[pend.tile].name)} seharga ${rpS(pend.price)}`];
       html += `<div class="msg">${info[0]}<small>${info[1]}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Lihat pilihan</button>`);
+    } else if (pend && pend.type === 'blackhole') {
+      html += `<div class="msg">🕳️ Lubang Hitam<small>Pilih petak untuk menjebak lawan.</small></div>`;
+      acts.push(`<button class="btn y" data-sheet>Pilih petak</button>`);
     } else if (pend && pend.type === 'travel') {
       html += `<div class="msg">${pend.row != null ? '🧭 Pindah sebaris' : '🧳 Travelling!'}<small>${pend.row != null ? 'Pilih petak mana saja di baris ini.' : 'Pilih kotak tujuan mana saja.'}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Pilih tujuan</button>`);
@@ -980,7 +993,7 @@ function sheetKey() {
   if (!p || p.bankrupt || S.phase !== 'playing') return null;
   const pend = S.pending;
   if (myTurn() && pend && pend.type === 'buy' && isNormal() && W.board[pend.tile].type === 'city') return 'buy:' + pend.tile + ':' + S.diceSeq;
-  if (myTurn() && pend && ['bill', 'upgradeOffer', 'travel', 'festival', 'slot', 'takeover', 'startBuild'].includes(pend.type)) return pend.type + ':' + (pend.tile ?? '') + ':' + S.diceSeq + ':' + (pend.amount || '');
+  if (myTurn() && pend && ['bill', 'upgradeOffer', 'travel', 'blackhole', 'festival', 'slot', 'takeover', 'startBuild', 'ojolStep'].includes(pend.type)) return pend.type + ':' + (pend.tile ?? '') + ':' + S.diceSeq + ':' + (pend.amount || '');
   if (p.money < 0) return 'debt';
   return null;
 }
@@ -1060,6 +1073,13 @@ function renderSheet() {
     const lead = S.pending.takeover ? (from === 3 ? `${esc(t.name)} (Kabupaten) sudah jadi milikmu. Langsung upgrade ke Landmark? Landmark tidak bisa diambil alih lawan, kecuali oleh avatar Manusia (Raja Akuisisi).` : `${esc(t.name)} sudah jadi milikmu. Mau langsung dibangun lagi?`)
       : from === 3 ? 'Kabupatenmu bisa dijadikan Landmark. Landmark tidak bisa diambil alih lawan, kecuali oleh avatar Manusia (Raja Akuisisi).' : 'Kamu berhenti di propertimu sendiri. Mau dibangun lagi?';
     html = `<h2>${from === 3 ? '🏛️' : '🏗️'} ${S.pending.takeover && from === 3 ? 'Jadikan Landmark?' : esc(t.name)}</h2><p class="lead">${lead}</p>${boothHtml(pend.tile, false)}`;
+  } else if (pend.type === 'ojolStep') {
+    // Pilih petak tujuan: dadu -1, dadu, dadu +1 (dengan info pemilik & sewa)
+    html = `<h2>🛵 Antar Jemput</h2><p class="lead">Dadumu ${pend.sum}. Mau berhenti di mana?</p><div class="pick-list">${[-1, 0, 1].map(adj => {
+      const n = pend.sum + adj, i = (p.pos + n) % W.board.length, t = W.board[i], pr = S.props[i], o = pr && pr.owner ? P(pr.owner) : null;
+      const sub = pr ? (o ? (o.id === me ? 'milikmu' : `milik ${o.name} · sewa ${rpS(rentNow(i))}`) : 'kosong · ' + rpS(t.price)) : (TILE_DESC[t.type] ? '' : '');
+      return `<button data-ojol="${adj}"><i class="sw" style="background:${swatch(i)}"></i><b>${n} petak → ${tileIcon(t)} ${esc(t.name)}</b><small>${esc(sub)}</small></button>`;
+    }).join('')}</div>`;
   } else if (pend.type === 'startBuild') {
     if (startPick != null && !upgradeOptions(startPick).length) startPick = null;
     if (startPick == null) {
@@ -1095,6 +1115,15 @@ function renderSheet() {
       <div class="row" style="margin-top:12px"><button class="btn g" data-take="1" ${p.money < pend.price ? 'disabled' : ''}>Ya, ambil alih ${rpS(pend.price)}</button>
       ${p.vouchers ? `<button class="btn b" data-take="v" ${p.money < pend.price / 2 ? 'disabled' : ''}>🏷️ Pakai voucher ${rpS(pend.price / 2)}</button>` : ''}
       <button class="btn" data-take="0">Tidak</button></div>`;
+  } else if (pend.type === 'blackhole') {
+    const sideName = ['Sisi bawah', 'Sisi kiri', 'Sisi atas', 'Sisi kanan'];
+    html = `<h2>🕳️ Lubang Hitam</h2><p class="lead">Pilih petak mana saja. Lawan pertama yang berhenti di sana terkurung ${(W.normalAvatars && W.normalAvatars.alien && W.normalAvatars.alien.turns) || 2} giliran. Lubang hitammu yang lama pindah ke sini.</p>
+      <div class="travel">${[0, 1, 2, 3].map(sd => `<h4>${sideName[sd]}</h4>` + W.board.slice(sd * SDN(), sd * SDN() + SDN()).map((t, k) => {
+        const i = sd * SDN() + k, pr = S.props[i], o = pr && pr.owner ? P(pr.owner) : null;
+        const here = S.players.filter(q => q.id !== me && !q.bankrupt && q.pos === i).map(q => q.name).join(', ');
+        const sub = [pr ? (o ? (o.id === me ? 'milikmu' : 'milik ' + o.name) : 'kosong') : '', here ? '👤 ' + here : ''].filter(Boolean).join(' · ');
+        return `<button data-bh="${i}"><i class="sw" style="background:${swatch(i)}"></i><span><b>${tileIcon(t)} ${esc(t.name)}</b><small>${esc(sub)}</small></span></button>`;
+      }).join('')).join('')}</div>`;
   } else if (pend.type === 'travel') {
     const sideName = ['Sisi bawah', 'Sisi kiri', 'Sisi atas', 'Sisi kanan'], row = pend.row, stay = row != null ? meP().pos : travelIdx();
     html = `<h2>${row != null ? '🧭 Pindah sebaris' : '🧳 Travelling!'}</h2><p class="lead">${row != null ? 'Pilih petak mana saja di baris tempatmu berada.' : 'Pilih kotak tujuan mana saja. Kalau melewati Mulai, kamu tetap gajian.'} Kamu juga bisa ketuk petak di papan.</p>
@@ -1112,6 +1141,7 @@ function renderSheet() {
   if (pend && pend.type === 'upgradeOffer') { if (isNormal()) bindBooth(el, pend.tile, false); else bindUpgrade(el, pend.tile); }
   if (pend && pend.type === 'buy') bindBooth(el, pend.tile, true);
   if (pend && pend.type === 'startBuild' && startPick != null) bindBooth(el, startPick, false);
+  el.querySelectorAll('[data-ojol]').forEach(b => b.onclick = () => emit('ojolStep', { adj: +b.dataset.ojol }));
   el.querySelectorAll('[data-startpick]').forEach(b => b.onclick = () => { startPick = +b.dataset.startpick < 0 ? null : +b.dataset.startpick; renderSheet(); });
   el.querySelectorAll('[data-fest]').forEach(b => b.onclick = () => emit('festival', { tile: +b.dataset.fest }));
   el.querySelectorAll('[data-fest-skip]').forEach(b => b.onclick = () => emit('festival', { skip: true }));
@@ -1122,6 +1152,7 @@ function renderSheet() {
   el.querySelectorAll('[data-install]').forEach(b => b.onclick = () => emit('installRent', { n: +b.dataset.install }));
   el.querySelectorAll('[data-mortgage]').forEach(b => b.onclick = () => emit('mortgage', { tile: +b.dataset.mortgage }));
   el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => emit('travel', { tile: +b.dataset.go }));
+  el.querySelectorAll('[data-bh]').forEach(b => b.onclick = () => emit('blackhole', { tile: +b.dataset.bh }));
   const l = el.querySelector('[data-later]'); if (l) l.onclick = () => { sheetDismissed = key; el.hidden = true; };
 }
 

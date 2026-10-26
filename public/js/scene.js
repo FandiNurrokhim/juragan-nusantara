@@ -177,6 +177,13 @@ function drawBoard(g, BOARD, GC, S, colorOf) {
         g.fillStyle = '#ffe14d'; g.font = `800 34px ${DISPLAY}`; g.fillText('⚡ PADAM', 0, -8);
         g.font = `700 24px ${FONT}`; g.fillText(pr.blackout.turns + ' giliran', 0, 26);
       }
+      const bhOwner = Object.keys(S.blackholes || {}).find(id => S.blackholes[id] === i);
+      if (bhOwner) {
+        const gr = g.createRadialGradient(0, 0, 4, 0, 0, 62);
+        gr.addColorStop(0, '#000'); gr.addColorStop(0.55, '#1a0b2e'); gr.addColorStop(0.8, colorOf(bhOwner) || '#8e5bd6'); gr.addColorStop(1, 'rgba(142,91,214,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(0, 4, 62, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.font = `800 19px ${DISPLAY}`; g.fillText('LUBANG', 0, -2); g.fillText('HITAM', 0, 20);
+      }
       const mult = rentMult(BOARD, S, i);
       if (mult > 1) {
         const fest = S.festival && S.festival.tile === i;
@@ -616,7 +623,7 @@ export function createBoardScene(container, opts) {
     buildGroup.add(sp);
   }
   function rebuildProps() {
-    const sig = JSON.stringify(S.props) + JSON.stringify(S.festival || null) + S.mode + S.players.map(p => p.id + p.color).join();
+    const sig = JSON.stringify(S.props) + JSON.stringify(S.festival || null) + JSON.stringify(S.blackholes || null) + S.mode + S.players.map(p => p.id + p.color).join();
     if (sig === lastBuildSig) return;
     lastBuildSig = sig;
     if (decks.musibah) decks.musibah.group.visible = S.mode !== 'normal';

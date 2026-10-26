@@ -224,7 +224,7 @@ function publicState() {
     ranking: game.ranking, winBy: game.winBy || null, winTeam: game.winTeam != null ? game.winTeam : null, seq: ++game.seq,
     // lama permainan (ms) dihitung server, supaya tidak bergantung jam di HP pemain
     elapsed: game.startedAt ? (game.endedAt || Date.now()) - game.startedAt : 0,
-    mode: game.mode || 'wni', teams: !!game.teams, idleLeft: idleLeft(), tileFx: game.tileFx || null, festival: game.festival || null, lastSlot: game.lastSlot || null, fx: { seq: game.fxSeq, list: game.fx, notices: game.notices },
+    mode: game.mode || 'wni', teams: !!game.teams, blackholes: game.blackholes || {}, idleLeft: idleLeft(), tileFx: game.tileFx || null, festival: game.festival || null, lastSlot: game.lastSlot || null, fx: { seq: game.fxSeq, list: game.fx, notices: game.notices },
     players: game.players.map(p => ({ ...p, connected: isOnline(p) }))
   };
 }
@@ -249,8 +249,10 @@ function idleAction(c) {
   if (!pend) return !game.rolled ? ['roll', {}, 'dadu dilempar otomatis'] : ['endTurn', {}, 'giliran diselesaikan otomatis'];
   switch (pend.type) {
     case 'buy': case 'upgradeOffer': case 'startBuild': return ['skip', {}, 'dilewati otomatis'];
+    case 'ojolStep': return ['ojolStep', { adj: 0 }, 'maju sesuai dadu'];
     case 'takeover': return ['takeover', { accept: false }, 'tawaran ambil alih dilewati'];
     case 'travel': return ['travel', { tile: c.pos }, 'tetap di tempat'];
+    case 'blackhole': return ['blackhole', { tile: botBlackhole(c) }, 'lubang hitam dipasang otomatis'];
     case 'slot': return ['slotPlay', { play: false }, 'Mesin Game dilewati'];
     case 'power': return ['keepCard', {}, 'kartu disimpan'];
     case 'cardRoll': return ['rollCard', { shield: false }, 'dadu kartu dilempar otomatis'];
@@ -294,12 +296,13 @@ const loanRoom = p => Math.max(0, BANK.maxLoan + pmod(p, 'loanLimit') - (p.loanP
  *             [{ on, do, chance?, ... }]  efek saat kejadian. on: start, salary, afterRent, receiveRent, landStart, landOwn,
  *             landRival (berhenti di properti lawan), rivalLands (lawan berhenti di propertimu), build, jail, card, attacked,
  *             buildingLost, takeover (kamu mengambil alih), takenOver. do: money (amount), moneyPerProperty (amount, max), pctOfAmount (pct), travel, voucher,
- *             card (card: id | "random"), buildToken, landmark, levelUp, escape, block, blackout (turns), disaster, pull (range), makeLandmark (petak kejadian langsung jadi Landmark gratis).
+ *             card (card: id | "random"), buildToken, landmark, levelUp, escape, block, blackout (turns), disaster, pull (range), makeLandmark (petak kejadian langsung jadi Landmark gratis),
+ *             charge (amount: lawan pemicu membayar kepadamu), interest (pct, max: bunga dari uang tunaimu).
  *             Tambahan "needLandmark": true = efek hanya jalan kalau petak kejadiannya Landmark.
  */
 const PENDANT_FILE = path.join(__dirname, 'pendants.json');
 const PENDANT_HOOKS = ['start', 'salary', 'afterRent', 'receiveRent', 'landStart', 'landOwn', 'landRival', 'rivalLands', 'build', 'jail', 'card', 'attacked', 'buildingLost', 'takeover', 'takenOver'];
-const PENDANT_ACTIONS = ['money', 'moneyPerProperty', 'pctOfAmount', 'travel', 'voucher', 'card', 'buildToken', 'landmark', 'levelUp', 'escape', 'block', 'blackout', 'disaster', 'pull', 'makeLandmark'];
+const PENDANT_ACTIONS = ['money', 'moneyPerProperty', 'pctOfAmount', 'travel', 'voucher', 'card', 'buildToken', 'landmark', 'levelUp', 'escape', 'block', 'blackout', 'disaster', 'pull', 'makeLandmark', 'charge', 'interest'];
 const PENDANT_MODS = ['doubles', 'parity', 'tax', 'slotLuck', 'festivalStep', 'tourismRent', 'loanInterest', 'loanLimit'];
 const NORMAL_CARDS = ['bebassewa', 'bebaspajak', 'angel', 'sabotase', 'akuisisi', 'kontrak', 'gempa', 'badai', 'wabah', 'panggil', 'tukar'];
 let PENDANTS = [];
@@ -371,6 +374,10 @@ function pendantHook(p, on, ctx = {}) {
         }
         break;
       }
+      // Lawan yang memicu kejadian (mis. berhenti di tanahmu) membayar langsung kepadamu
+      case 'charge': if (ctx.by && !ctx.by.bankrupt) { pay(ctx.by, p, +e.amount || 0, tag); } break;
+      // Bunga dari uang tunai sendiri
+      case 'interest': money(Math.min(+e.max || Infinity, Math.max(0, p.money) * (+e.pct || 0))); break;
       // 🏛️ Petak kejadian (kota milikmu) langsung jadi Landmark tanpa biaya
       case 'makeLandmark': {
         const pr = game.props[ctx.tile];
@@ -501,6 +508,26 @@ function paySalary(p) {
   for (const i of ownedBy(p.id)) if (game.props[i].grace > 0) game.props[i].grace--;
   const base = isNormal() ? NORMAL.salary + (skillOf(p) === 'panen' ? skillData(p).amount : 0) : SALARY + n * LAND.income;
   receive(p, base, n ? `gaji + hasil ${n} tambang/kebun sawit` : skillOf(p) === 'panen' ? 'gaji + 🌾 Panen Raya' : 'gaji satu putaran');
+  if (skillOf(p) === 'santet') {
+    const t = rivalsOf(p).sort((a, b) => b.money - a.money)[0];
+    if (t && !shielded(t, p, 'Santet')) { skillBadge(p); log(`🧙 ${p.name} menyantet ${t.name}`); pay(t, p, skillData(p).amount, '🧙 kena santet'); }
+  }
+  if (skillOf(p) === 'segel' && skillHit(p)) {
+    const i = Object.keys(game.props).map(Number).filter(j => { const pr = game.props[j], o = P(pr.owner); return o && o.id !== p.id && !sameTeam(o, p) && !o.bankrupt && BOARD[j].type === 'city' && pr.houses > 0 && !pr.lease && !guarded(j); })
+      .sort((a, b) => game.props[b].houses - game.props[a].houses || BOARD[b].price - BOARD[a].price)[0];
+    const o = i != null && P(game.props[i].owner);
+    if (o && !shielded(o, p, 'Segel Bangunan')) {
+      const pr = game.props[i], was = pr.houses;
+      skillBadge(p); tileFx(i, 'disaster'); fx('seize');
+      pendantHook(o, 'buildingLost', { amount: BOARD[i].house * (was === 5 ? 5 : was) });
+      pr.houses = 0; pr.use = null;
+      log(`🚔 Satpol PP ${p.name} menyegel ${levelName(was)} di ${BOARD[i].name} milik ${o.name}: bangunannya dibongkar, tinggal tanah kosong`);
+    }
+  }
+  if (skillOf(p) === 'harta') {
+    const sd = skillData(p), bunga = Math.min(sd.cap, Math.round(Math.max(0, p.money) * sd.pct / 1000) * 1000);
+    if (bunga > 0) { skillBadge(p); receive(p, bunga, '🐉 bunga Harta Naga'); }
+  }
   if (skillOf(p) === 'panen') {
     skillBadge(p);
     const up = ownedBy(p.id).filter(i => BOARD[i].type === 'city' && !game.props[i].mortgaged && !game.props[i].lease && game.props[i].houses < 3 && !isBiz(game.props[i].use))
@@ -573,6 +600,7 @@ const redeemCost = i => Math.round((game.props[i].mortgageValue || BOARD[i].pric
 function offerTakeover(p, i) {
   const pr = game.props[i], o = pr && P(pr.owner);
   if (!isNormal() || !o || o.id === p.id || sameTeam(o, p) || pr.lease || BOARD[i].type !== 'city' || (pr.houses >= 5 && skillOf(p) !== 'nego')) return;
+  if (skillOf(o) === 'titah') { log(`👸 ${BOARD[i].name} dilindungi Titah Raja ${o.name}, tidak bisa diambil alih`); return; }
   const price = takeoverPrice(p, i);
   if (p.money < price && !(p.vouchers > 0 && p.money >= Math.round(price / 2 / 1000) * 1000)) return;
   // Travelling (mis. dari Tiket Pesawat) tidak batal: ditunda sampai keputusan ambil alih selesai.
@@ -587,7 +615,16 @@ const isOthersLand = (p, i) => isBuyable(i) && game.props[i].owner && game.props
 // Colong Duit juga berlaku untuk lawan di petak tujuan (bukan hanya yang dilewati).
 function passSkills(p, passed, dest) {
   const sk = skillOf(p);
-  for (const o of alive().filter(o => o.id !== p.id && !sameTeam(o, p) && !o.inJail && (passed.has(o.pos) || (sk === 'colong' && o.pos === dest)))) {
+  for (const o of alive().filter(o => o.id !== p.id && !sameTeam(o, p) && !o.inJail && (passed.has(o.pos) || ((sk === 'colong' || sk === 'usil') && o.pos === dest)))) {
+    if (sk === 'terkam') {
+      if (skillHit(p)) { o.pos = (o.pos - 3 + NT()) % NT(); skillBadge(p); fx('seize'); log(`🐯 ${p.name} menerkam ${o.name}: terdorong mundur ke ${BOARD[o.pos].name}`); pay(o, p, skillData(p).amount, '🐯 diterkam harimau'); }
+      continue;
+    }
+    if (sk === 'usil') {
+      const cards = Object.entries(o.hand || {}).filter(([, n]) => n > 0).map(([k]) => k);
+      if (cards.length && skillHit(p)) { const k = pick(cards); o.hand[k]--; addCard(p, k); skillBadge(p); fx('seize'); log(`🐒 ${p.name} usil mencuri kartu ${POWERS[k].name} dari ${o.name}`); }
+      continue;
+    }
     if (sk === 'setoran') { pay(o, p, skillData(p).amount, '🚐 setoran angkot'); skillBadge(p); }
     else if (sk === 'colong' && skillHit(p)) {
       const sd = skillData(p), amt = Math.min(sd.cap || 100 * K, Math.round(Math.max(0, o.money) * (sd.pct || 0.1) / 1000) * 1000);
@@ -602,9 +639,42 @@ function passSkills(p, passed, dest) {
   }
 }
 
+// Skill pemain lain yang aktif saat seseorang berhenti di petak tertentu (Preman Pasar, Lapak).
+function sideSkills(p, i) {
+  const N = NT();
+  for (const o of alive().filter(o => o.id !== p.id && !sameTeam(o, p))) {
+    const sk = skillOf(o);
+    if (sk === 'preman') {
+      const nb = [(i + 1) % N, (i - 1 + N) % N].find(j => { const pr = game.props[j]; return pr && pr.owner === o.id && !pr.mortgaged && !pr.blackout && BOARD[j].type === 'city'; });
+      if (nb != null && skillHit(o)) { const amt = Math.round(calcRent(nb) / 2 / 1000) * 1000; if (amt > 0) { skillBadge(o); log(`🗡️ Jawara ${o.name} memalak ${p.name} di sebelah ${BOARD[nb].name}`); pay(p, o, amt, '🗡️ uang keamanan'); } }
+    } else if (sk === 'lapak' && ['kesempatan', 'slot', 'festival'].includes(BOARD[i].type)) {
+      skillBadge(o); log(`🛒 ${p.name} jajan di lapak ${o.name}`); pay(p, o, skillData(o).amount, '🛒 jajan di lapak');
+    }
+  }
+}
 // Petak tempat bidak berhenti. Sewa dan pajak jadi tagihan yang harus dibayar lewat tombol.
 function resolveTile(p) {
+  const i = p.pos;
+  if (!isNormal()) return resolveTileBase(p);
+  const bh = game.blackholes || {}, oid = Object.keys(bh).find(id => bh[id] === i && id !== p.id), o = oid && P(oid);
+  if (oid) delete bh[oid];
+  if (o && !o.bankrupt && !sameTeam(o, p) && !shielded(p, o, 'Lubang Hitam')) {
+    const n = skillData(o).turns || 2;
+    p.skip = (p.skip || 0) + n; skillBadge(o); tileFx(i, 'disaster'); fx('seize');
+    if (cur() && cur().id === p.id) game.doubles = 0;
+    log(`🕳️ ${p.name} tersedot lubang hitam milik ${o.name} di ${BOARD[i].name}: terkurung ${n} giliran`);
+  }
+  const own = realOwner(i) === p.id;
+  resolveTileBase(p);
+  if (own && !p.bankrupt && p.pos === i && skillOf(p) === 'lubang' && skillHit(p)) {
+    skillBadge(p);
+    log(`🛸 ${p.name} siap membuka lubang hitam`);
+    game.pending = { type: 'blackhole', next: game.pending || null };
+  }
+}
+function resolveTileBase(p) {
   const i = p.pos, t = BOARD[i];
+  sideSkills(p, i);
   if (isBuyable(i)) {
     const pr = game.props[i];
     // properti lawan saja: bukan milik sendiri (termasuk yang sedang kamu kontrakkan ke orang lain) dan bukan milik rekan setim
@@ -638,6 +708,10 @@ function resolveTile(p) {
         let amount = calcRent(i), note = '';
         if (skillOf(owner) === 'gentayangan' && skillHit(owner)) { const m = skillData(owner).mult || 2; skillBadge(owner); amount = Math.round(amount * m / 1000) * 1000; note = ` (👻 digentayangi, sewa ${String(m).replace('.', ',')}×)`; }
         if (skillOf(p) === 'teror' && skillHit(p)) { skillBadge(p); log(`👾 ${p.name} meneror ${owner.name}, sewa ${t.name} tidak dibayar`); fx('seize'); offerTakeover(p, i); return; } // tawaran ambil alih tetap muncul
+        if (skillOf(owner) === 'penagih' && skillHit(owner)) {
+          const sd = skillData(owner), extra = Math.min(sd.cap, Math.round(Math.max(0, netWorth(p)) * sd.pct / 1000) * 1000);
+          if (extra > 0) { skillBadge(owner); amount += extra; note += ` (🤖 ditagih utang +${rp(extra)})`; }
+        }
         if (skillOf(p) === 'mulus' && skillHit(p)) { skillBadge(p); amount = Math.round(amount / 2 / 1000) * 1000; note += ' (🐾 mendarat mulus, sewa ½)'; }
         game.pending = { type: 'bill', tile: i, to: owner.id, amount, reason: 'Sewa ' + t.name };
         log(`${p.name} berhenti di tanah milik ${owner.name}: sewa ${rp(amount)}${note}`);
@@ -904,6 +978,12 @@ function applyEffect(p, e, reason, drawer) {
 
 // Doa Orang Tua yang disimpan otomatis menangkis serangan pemain lain.
 function shielded(target, attacker, what) {
+  if (skillOf(target) === 'tameng' && skillHit(target)) {
+    skillBadge(target); fx('shield');
+    log(`🦸 Tameng Baja ${target.name} menangkis ${what} dari ${attacker.name}!`);
+    pay(attacker, target, skillData(target).amount, 'serangan tertangkis Tameng Baja');
+    return true;
+  }
   const blocker = pendantHook(target, 'attacked').block;
   if (blocker) { fx('shield'); log(`${blocker} ${target.name} menangkis ${what} dari ${attacker.name}!`); return true; }
   const k = target.hand.angel > 0 ? 'angel' : target.hand.doa > 0 ? 'doa' : null;
@@ -918,6 +998,7 @@ function normalTargets(p, card) {
   return Object.keys(game.props).map(Number).filter(i => {
     const pr = game.props[i], o = pr.owner && P(pr.owner);
     if (!o || o.id === p.id || sameTeam(o, p) || o.bankrupt || pr.lease) return false;
+    if (skillOf(o) === 'titah' && ['akuisisi', 'kontrak', 'tukar'].includes(card)) return false; // 👸 Titah Raja
     if (card === 'akuisisi' || card === 'tukar') return pr.houses < 5 && BOARD[i].type === 'city';
     if (card === 'gempa') return pr.houses > 0 && pr.houses < 5;
     if (card === 'badai') return pr.houses > 0 && BOARD[i].type === 'city';
@@ -1169,6 +1250,7 @@ function eliminate(p, to, why) {
   for (const pr of Object.values(game.props)) if (pr.owner === p.id) { Object.assign(pr, bankProp()); delete pr.slump; delete pr.blackout; }
   if (game.festival && !game.props[game.festival.tile].owner) game.festival = null;
   if (to && p.money < 0) to.money -= Math.min(-p.money, Math.max(0, to.money)); // utang yang tak terbayar tidak ikut diterima
+  if (game.blackholes) delete game.blackholes[p.id];
   Object.assign(p, { money: 0, bankrupt: true, hand: emptyHand(), inJail: false, skip: 0, outAt: ++game.outSeq, loan: 0, loanPrincipal: 0, installments: [] });
   fx('bankrupt');
   log(`💀 ${p.name} gugur ${why}. Semua tanahnya disita negara dan kembali jadi tanah kosong.`);
@@ -1282,6 +1364,17 @@ const actions = {
     shuffle(game.players); applyTeams();
     log('🔀 Tim diacak: ' + [...new Set(game.players.map(q => q.team))].map(t => `${teamName(t)} (${game.players.filter(q => q.team === t).map(q => q.name).join(' & ')})`).join(', '));
   },
+  // 🛵 Antar Jemput (Ojol): maju sesuai dadu, satu petak kurang, atau satu petak lebih
+  ojolStep(p, d) {
+    needTurn(p);
+    const pend = game.pending;
+    if (!pend || pend.type !== 'ojolStep') fail('Tidak ada pilihan langkah.');
+    const adj = Math.max(-1, Math.min(1, Math.round(Number(d.adj) || 0)));
+    game.pending = null;
+    if (adj) { skillBadge(p); log(`🛵 Antar Jemput: ${p.name} maju ${pend.sum + adj} petak (dadu ${pend.sum})`); }
+    moveBy(p, pend.sum + adj);
+    if (p.inJail) game.rolled = true;
+  },
   // Pasang liontin (maksimal NORMAL.maxPendants) sebelum permainan dimulai.
   setPendants(p, d) {
     needPlayer(p); needLobby();
@@ -1341,7 +1434,7 @@ const actions = {
     game.festival = null; game.lastSlot = null;
     game.decks = { kesempatan: fullDeck('kesempatan', false), musibah: fullDeck('musibah', false) };
     game.startedAt = Date.now(); game.endedAt = 0; game.timeWarned = false;
-    game.phase = 'playing'; game.turn = 0; game.props = freshProps(); game.rolled = false; game.doubles = 0; game.outSeq = 0;
+    game.phase = 'playing'; game.turn = 0; game.props = freshProps(); game.blackholes = {}; game.rolled = false; game.doubles = 0; game.outSeq = 0;
     game.specialAdded = false; game.announce = null; game.ultraDrawn = [];
     log(isNormal() ? `🎲 Mode Normal dimulai! Modal ${rp(NORMAL.startMoney)} untuk semua, gaji ${rp(NORMAL.salary)} per putaran.`
       : `🇮🇩 Mode WNI dimulai! Modal awal tergantung avatar (Rp 5–10 jt), gaji ${rp(SALARY)} per putaran. Bertahanlah selama mungkin.`);
@@ -1359,6 +1452,11 @@ const actions = {
       const pairs = [];
       for (let x = 1; x <= 6; x++) { const y = target - x; if (y >= 1 && y <= 6) pairs.push([x, y]); }
       [a, b] = pick(pairs); aimed = true;
+    }
+    if (skillOf(p) === 'pelan' && !p.inJail && a + b < 5) {
+      while (a + b < 5) { a = d6(); b = d6(); }
+      skillBadge(p); receive(p, skillData(p).amount, '🛺 ongkos becak');
+      log(`🛺 Pelan tapi Pasti: dadu kecil ${p.name} diganti jadi ${a} + ${b}`);
     }
     let twin = '';
     if (!aimed && a !== b && !p.inJail && chance(pmod(p, 'doubles'))) { b = a; twin = ' ' + pmodTag(p, 'doubles'); }
@@ -1385,6 +1483,7 @@ const actions = {
       if (game.doubles >= 3) { log('Tiga kali kembar berturut-turut!'); sendToJail(p); return; }
     }
     game.rolled = !dbl;
+    if (skillOf(p) === 'antar') { game.pending = { type: 'ojolStep', sum }; log(`🛵 ${p.name} boleh memilih maju ${sum - 1}, ${sum}, atau ${sum + 1} petak`); return; }
     moveBy(p, sum);
     if (p.inJail) game.rolled = true;
     else if (!dbl && skillOf(p) === 'kokok' && !p.kokokDone && skillHit(p)) { skillBadge(p); p.kokokDone = true; game.rolled = false; log(`🐓 Kokok Pagi! ${p.name} boleh melempar dadu sekali lagi`); }
@@ -1569,12 +1668,24 @@ const actions = {
     pr.owner = p.id;
     if (pr.blackout) { delete pr.blackout; tileFx(i, 'restore'); log(`💡 Listrik ${BOARD[i].name} menyala lagi setelah diambil alih`); }
     pendantHook(o, 'takenOver', { amount: pend.price });
-    pendantHook(p, 'takeover', { tile: i });
+    pendantHook(p, 'takeover', { tile: i, amount: pend.price });
     if (skillOf(p) === 'nego') skillBadge(p);
     fx('seize');
     log(`🕴️ ${p.name} mengambil alih ${BOARD[i].name}${pr.houses ? ' beserta bangunannya' : ''} dari ${o.name} (${rp(pend.price)})`);
     if (upgradeOptions(p, i).length) game.pending = { type: 'upgradeOffer', tile: i, takeover: true, ...(pend.thenTravel ? { thenTravel: true } : {}) };
     else resumeTravel(pend, p);
+  },
+  blackhole(p, d) {
+    needTurn(p);
+    const pend = game.pending;
+    if (!pend || pend.type !== 'blackhole') fail('Kamu tidak sedang membuka lubang hitam.');
+    const i = Number(d.tile);
+    if (!Number.isInteger(i) || i < 0 || i >= NT()) fail('Pilih petak untuk lubang hitam.');
+    game.blackholes = game.blackholes || {};
+    game.blackholes[p.id] = i;
+    game.pending = pend.next || null;
+    tileFx(i, 'disaster');
+    log(`🕳️ ${p.name} membuka lubang hitam di ${BOARD[i].name}`);
   },
   travel(p, d) {
     needTurn(p);
@@ -1990,12 +2101,19 @@ function botDecide() {
       const best = keep != null ? keep : mine.sort((a, b) => baseRent(b) - baseRent(a))[0];
       return best != null ? [c, 'festival', { tile: best }] : [c, 'festival', { skip: true }];
     }
+    if (pend.type === 'ojolStep') {
+      // pilih petak terbaik: tanah kosong terjangkau > tanah sendiri > sewa lawan termurah
+      const score = adj => { const i = (c.pos + pend.sum + adj) % NT(), pr = game.props[i]; if (!pr) return 0; if (!pr.owner) return c.money >= landPrice(c, i) ? 3 : 0; if (pr.owner === c.id || sameTeam(P(pr.owner), c)) return 1; return -calcRent(i) / 1e6; };
+      const adj = [-1, 0, 1].sort((a, b) => score(b) - score(a))[0];
+      return [c, 'ojolStep', { adj }];
+    }
     if (pend.type === 'slot') { const bet = [...NORMAL.slotBets].reverse().find(b => c.money - b > 6e6); return [c, 'slotPlay', { play: !!bet && Math.random() < 0.5, bet }]; }
     if (pend.type === 'takeover') return [c, 'takeover', { accept: c.money - pend.price > 4e6 }];
     if (pend.type === 'upgradeOffer') { const up = botUpgrade(c, pend.tile); return up ? [c, 'upgrade', up] : [c, 'skip']; }
     if (pend.type === 'power') return botPower(c, pend.card, true);
     if (pend.type === 'cardRoll') return [c, 'rollCard', { shield: botShouldShield(c, pend) }];
     if (pend.type === 'travel') return [c, 'travel', { tile: botTravelTarget(c, pend.row) }];
+    if (pend.type === 'blackhole') return [c, 'blackhole', { tile: botBlackhole(c) }];
     if (pend.type === 'fire') return [c, 'fireChoice', { extinguish: c.pejabat > 0 || c.money >= LAND.fireCost + 1.5e6 }];
     if (pend.type === 'poison') return [c, 'poisonChoice', { pay: c.money >= LAND.poisonFine + 1e6 }];
     if (pend.type === 'bill') {
@@ -2090,6 +2208,13 @@ function botWantsBuy(p, i, offer) {
   return p.money >= price && (p.money - price >= 2e6 || completesGroup(p, i));
 }
 // Travelling: cari tanah kosong yang terjangkau, utamakan yang melengkapi warna. Kalau tidak ada, diam saja.
+// Lubang hitam: 7 langkah di depan lawan terkaya (jumlah dadu paling sering), hindari petak sendiri.
+function botBlackhole(p) {
+  const r = rivalsOf(p).filter(o => !o.inJail).sort((a, b) => b.money - a.money)[0];
+  if (!r) return p.pos;
+  for (const k of [7, 6, 8, 5, 9]) { const i = (r.pos + k) % NT(); if (realOwner(i) !== p.id) return i; }
+  return (r.pos + 7) % NT();
+}
 function botTravelTarget(p, row) {
   const inRow = i => row == null || Math.floor(i / (NT() / 4)) === row;
   const urgent = BOARD.some((t, i) => t.type === 'tourism' && !game.props[i].owner) && (tourismOf(p.id) === NORMAL.tourismWin - 1 || rivalsOf(p).some(o => tourismOf(o.id) === NORMAL.tourismWin - 1));

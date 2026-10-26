@@ -10,7 +10,7 @@ const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJA
 const errMsgs = {};
 let pendants = [], pendantHits = {}, seenLog = new Set(), skillHits = {}, turns = 0, owners = {}, namedTurns = {};
 // Pola catatan permainan untuk tiap skill avatar
-const SKILL_LOG = { proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/, gentayangan: /digentayangi/, colong: /dicolong tuyul/, teror: /meneror/, panen: /Panen Raya/, nego: /mengambil alih/ };
+const SKILL_LOG = { lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/, gentayangan: /digentayangi/, colong: /dicolong tuyul/, teror: /meneror/, panen: /Panen Raya/, nego: /mengambil alih/ };
 let state = null, board = null, actions = 0, serverErrors = 0, gameErrors = 0;
 const seen = { kesempatan: 0, musibah: 0, power: 0, shield: 0, seize: 0, dice1: 0, travel: 0, bankrupt: 0, events: 0, special: 0 };
 const bots = [];
@@ -98,6 +98,8 @@ const st0Models = () => state ? state.players.map(q => (q.look && q.look.model) 
       bot.s.emit('poisonChoice', { pay: c.money >= 3000000 && Math.random() < 0.5 });
     } else if (pend && pend.type === 'fire') {
       bot.s.emit('fireChoice', { extinguish: c.money >= 500000 && Math.random() < 0.5 });
+    } else if (pend && pend.type === 'ojolStep') {
+      bot.s.emit('ojolStep', { adj: [-1, 0, 1][Math.floor(Math.random() * 3)] });
     } else if (pend && pend.type === 'startBuild') {
       const t = owned(c.id).find(i => board[i].type === 'city' && !state.props[i].mortgaged && state.props[i].houses < 5);
       if (t != null && Math.random() < 0.6) { const h = state.props[t].houses; bot.s.emit('upgrade', { tile: t, kind: 'properti', level: h === 3 ? 5 : h + 1, pay: 'cash' }); await sleep(4); }

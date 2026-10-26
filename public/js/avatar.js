@@ -414,6 +414,217 @@ const CREATURES = {
     body.add(mesh(G('bumper', () => new THREE.BoxGeometry(0.64, 0.05, 0.05)), chrome, 0, 0.24, 0.51));
     return hatAnchor(body, 0, 0.65, -0.08, 0.8);
   },
+  // Robot: badan kotak logam, layar wajah berisi foto, antena, lengan pipa.
+  robot(body, color, photo) {
+    const metal = std(shade(color, 1.1), { metalness: 0.6, roughness: 0.35 }), dark = std('#2b2b30', { metalness: 0.5, roughness: 0.4 }), steel = std('#c9ccd3', { metalness: 0.8, roughness: 0.25 });
+    for (const sd of [-1, 1]) body.add(mesh(G('rLeg', () => new THREE.BoxGeometry(0.13, 0.26, 0.15)), dark, sd * 0.13, 0.23, 0));
+    body.add(mesh(G('rBody', () => new THREE.BoxGeometry(0.52, 0.46, 0.36)), metal, 0, 0.6, 0));
+    body.add(mesh(G('rPanel', () => new THREE.BoxGeometry(0.3, 0.16, 0.02)), dark, 0, 0.62, 0.185));
+    [-0.08, 0, 0.08].forEach((x, k) => body.add(mesh(G('rLed', () => new THREE.SphereGeometry(0.022, 8, 6)), std(['#ff4d4d', '#ffd400', '#4dff88'][k], { emissive: ['#ff4d4d', '#ffd400', '#4dff88'][k], emissiveIntensity: 0.8 }), x, 0.62, 0.2)));
+    for (const sd of [-1, 1]) {
+      const arm = mesh(G('rArm', () => new THREE.CylinderGeometry(0.045, 0.045, 0.36, 10)), steel, sd * 0.32, 0.6, 0); arm.rotation.z = sd * 0.25; body.add(arm);
+      body.add(mesh(G('rHand', () => new THREE.SphereGeometry(0.06, 10, 8)), dark, sd * 0.37, 0.42, 0));
+    }
+    body.add(mesh(G('rNeck', () => new THREE.CylinderGeometry(0.06, 0.06, 0.08, 10)), steel, 0, 0.87, 0));
+    const head = new THREE.Group(); head.position.set(0, 1.07, 0); body.add(head);
+    head.add(mesh(G('rHead', () => new THREE.BoxGeometry(0.46, 0.34, 0.34)), metal, 0, 0, 0));
+    const screen = windowPane(photo, 0.36, 0.24); screen.position.set(0, 0, 0.172); head.add(screen);
+    head.add(mesh(G('rAnt', () => new THREE.CylinderGeometry(0.01, 0.01, 0.18, 6)), steel, 0, 0.26, 0));
+    head.add(mesh(G('rAntBall', () => new THREE.SphereGeometry(0.035, 10, 8)), std('#ff4d4d', { emissive: '#aa0000' }), 0, 0.36, 0));
+    for (const sd of [-1, 1]) head.add(mesh(G('rEar', () => new THREE.CylinderGeometry(0.05, 0.05, 0.05, 12)), dark, sd * 0.25, 0, 0)).children.at(-1).rotation.z = Math.PI / 2;
+    return hatAnchor(head, 0, 0.1, 0, 0.75);
+  },
+  // Monyet: badan bulat cokelat, wajah berfoto, telinga bulat, ekor melengkung.
+  monyet(body, color, photo) {
+    const fur = std('#7a4e2d', { roughness: 0.85 }), tan = std('#e2c29b'), vest = std(color);
+    for (const sd of [-1, 1]) body.add(mesh(G('mLeg', () => new THREE.CylinderGeometry(0.06, 0.07, 0.24, 10)), fur, sd * 0.11, 0.2, 0));
+    const torso = mesh(G('mTorso', () => new THREE.SphereGeometry(0.26, 22, 16)), fur, 0, 0.55, 0); torso.scale.set(1, 1.1, 0.9); body.add(torso);
+    const vestM = mesh(G('mVest', () => new THREE.CylinderGeometry(0.25, 0.27, 0.26, 20, 1, true)), vest, 0, 0.58, 0); body.add(vestM);
+    body.add(mesh(G('mBelly', () => new THREE.SphereGeometry(0.15, 16, 12)), tan, 0, 0.5, 0.15)).children.at(-1).scale.set(1, 1.1, 0.6);
+    for (const sd of [-1, 1]) { const arm = mesh(G('mArm', () => new THREE.CylinderGeometry(0.045, 0.045, 0.42, 10)), fur, sd * 0.3, 0.5, 0.02); arm.rotation.z = sd * 0.35; body.add(arm); }
+    const tail = mesh(G('mTail', () => new THREE.TorusGeometry(0.16, 0.03, 8, 20, Math.PI * 1.3)), fur, 0, 0.45, -0.28); tail.rotation.y = Math.PI / 2; body.add(tail);
+    const head = new THREE.Group(); head.position.set(0, 1.05, 0); head.scale.setScalar(0.95); body.add(head);
+    photoHead(head, photo, '#7a4e2d', '#e2c29b');
+    for (const sd of [-1, 1]) { head.add(mesh(G('mEar', () => new THREE.SphereGeometry(0.1, 14, 10)), fur, sd * 0.32, 0.02, -0.02)); head.add(mesh(G('mEarIn', () => new THREE.SphereGeometry(0.06, 10, 8)), tan, sd * 0.36, 0.02, 0.03)); }
+    return head;
+  },
+  // Superhero: badan berotot, topeng, jubah sewarna pemain, lambang bintang di dada.
+  superhero(body, color, photo) {
+    const suit = std(shade(color, 0.85), { roughness: 0.4 }), cape = std(color, { roughness: 0.6, side: THREE.DoubleSide }), gold = std('#f4c21a', { metalness: 0.6, roughness: 0.3 }), boots = std('#1d1d22');
+    for (const sd of [-1, 1]) { body.add(mesh(G('hLeg', () => new THREE.CylinderGeometry(0.075, 0.08, 0.36, 12)), suit, sd * 0.11, 0.28, 0)); body.add(mesh(G('hBoot', () => new THREE.CylinderGeometry(0.085, 0.09, 0.14, 12)), boots, sd * 0.11, 0.1, 0)); }
+    const torso = mesh(G('hTorso', () => new THREE.CylinderGeometry(0.26, 0.19, 0.5, 18)), suit, 0, 0.72, 0); body.add(torso);
+    body.add(mesh(G('hBelt', () => new THREE.CylinderGeometry(0.2, 0.2, 0.05, 18)), gold, 0, 0.49, 0));
+    const star = mesh(G('hStar', () => new THREE.CircleGeometry(0.09, 5)), gold, 0, 0.78, 0.2); body.add(star);
+    for (const sd of [-1, 1]) { const arm = mesh(G('hArm', () => new THREE.CylinderGeometry(0.06, 0.055, 0.42, 12)), suit, sd * 0.31, 0.72, 0); arm.rotation.z = sd * 0.3; body.add(arm); }
+    const capeM = mesh(G('hCape', () => new THREE.PlaneGeometry(0.56, 0.78)), cape, 0, 0.62, -0.2); capeM.rotation.x = 0.12; body.add(capeM);
+    const head = new THREE.Group(); head.position.set(0, 1.24, 0); body.add(head);
+    photoHead(head, photo, '#e9b98f', '#e9b98f');
+    const mask = mesh(G('hMask', () => new THREE.TorusGeometry(0.29, 0.035, 8, 32, Math.PI)), std('#1d1d22'), 0, 0.05, 0.03); mask.rotation.x = Math.PI / 2 - 0.1; mask.rotation.z = Math.PI; head.add(mask);
+    return head;
+  },
+  // Ojol: pengendara berjaket hijau di atas motor bebek; foto di wajah pengendara.
+  ojol(body, color, photo) {
+    const frame = std(color, { roughness: 0.35, metalness: 0.2 }), jacket = std('#1f9a62'), tire = std('#1b1b1f', { roughness: 0.9 }), seat = std('#2b2b30');
+    for (const z of [0.3, -0.3]) { const w = mesh(G('oWheel', () => new THREE.CylinderGeometry(0.13, 0.13, 0.07, 18)), tire, 0, 0.13, z); w.rotation.z = Math.PI / 2; body.add(w); }
+    const deck = mesh(G('oBody', () => new THREE.BoxGeometry(0.22, 0.18, 0.62)), frame, 0, 0.3, -0.02); body.add(deck);
+    body.add(mesh(G('oSeat', () => new THREE.BoxGeometry(0.2, 0.06, 0.3)), seat, 0, 0.42, -0.1));
+    const fork = mesh(G('oFork', () => new THREE.BoxGeometry(0.16, 0.38, 0.06)), frame, 0, 0.42, 0.3); fork.rotation.x = -0.25; body.add(fork);
+    body.add(mesh(G('oBar', () => new THREE.CylinderGeometry(0.015, 0.015, 0.4, 8)), std('#c9ccd3', { metalness: 0.8 }), 0, 0.62, 0.36)).children.at(-1).rotation.z = Math.PI / 2;
+    body.add(mesh(G('oLamp', () => new THREE.SphereGeometry(0.045, 10, 8)), std('#fff6c8', { emissive: '#665a20' }), 0, 0.55, 0.42));
+    const rider = mesh(G('oRider', () => new THREE.CylinderGeometry(0.17, 0.2, 0.4, 16)), jacket, 0, 0.66, -0.08); body.add(rider);
+    for (const sd of [-1, 1]) { const arm = mesh(G('oArm', () => new THREE.CylinderGeometry(0.045, 0.045, 0.36, 10)), jacket, sd * 0.17, 0.66, 0.15); arm.rotation.x = -1.1; body.add(arm); }
+    const head = new THREE.Group(); head.position.set(0, 1.1, -0.05); head.scale.setScalar(0.85); body.add(head);
+    photoHead(head, photo, '#e9b98f', '#e9b98f');
+    const helmet = mesh(G('oHelmet', () => new THREE.SphereGeometry(0.33, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2)), std('#1f9a62', { roughness: 0.35 }), 0, 0.02, -0.02); head.add(helmet);
+    return hatAnchor(head, 0, 0.1, 0, 0.0001); // helm sudah jadi topi
+  },
+  // Naga / barongsai: kepala besar bertanduk emas, badan bersisik meliuk, foto di medali dada.
+  naga(body, color, photo) {
+    const scale = std(color, { roughness: 0.45 }), gold = std('#f4c21a', { metalness: 0.6, roughness: 0.3 }), belly = std('#ffd97a');
+    [[0, 0.3, -0.32, 0.17], [0, 0.42, -0.12, 0.2], [0, 0.55, 0.08, 0.22]].forEach(([x, y, z, r], k) => {
+      body.add(mesh(G('nSeg' + k, () => new THREE.SphereGeometry(r, 18, 14)), scale, x, y, z));
+      body.add(mesh(G('nSpike' + k, () => new THREE.ConeGeometry(0.05, 0.14, 8)), gold, x, y + r + 0.03, z));
+    });
+    for (const sd of [-1, 1]) body.add(mesh(G('nLeg', () => new THREE.CylinderGeometry(0.05, 0.06, 0.3, 10)), scale, sd * 0.14, 0.15, 0.05));
+    const head = new THREE.Group(); head.position.set(0, 0.95, 0.12); body.add(head);
+    head.add(mesh(G('nHead', () => new THREE.BoxGeometry(0.46, 0.34, 0.42)), scale, 0, 0, 0));
+    head.add(mesh(G('nSnout', () => new THREE.BoxGeometry(0.32, 0.16, 0.2)), scale, 0, -0.07, 0.27));
+    head.add(mesh(G('nTeeth', () => new THREE.BoxGeometry(0.28, 0.03, 0.04)), std('#ffffff'), 0, -0.15, 0.35));
+    for (const sd of [-1, 1]) {
+      const horn = mesh(G('nHorn', () => new THREE.ConeGeometry(0.045, 0.24, 8)), gold, sd * 0.14, 0.26, -0.08); horn.rotation.z = -sd * 0.35; horn.rotation.x = -0.4; head.add(horn);
+      eye(head, sd * 0.13, 0.06, 0.22, 0.045);
+      const whisker = mesh(G('nWhisker', () => new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6)), gold, sd * 0.24, -0.08, 0.3); whisker.rotation.z = sd * 1.2; head.add(whisker);
+    }
+    const badge = photoBadge(photo, 0.12); badge.position.set(0, 0.56, 0.31); body.add(badge);
+    body.add(mesh(G('nBelly', () => new THREE.SphereGeometry(0.16, 14, 10)), belly, 0, 0.5, 0.18)).children.at(-1).scale.set(1, 1, 0.5);
+    return hatAnchor(head, 0, 0.17, -0.02, 0.75);
+  },
+  // Putri Keraton: kebaya & kain batik, siger emas di kepala, foto di wajah.
+  putri(body, color, photo) {
+    const kebaya = std(color, { roughness: 0.6 }), kain = std('#fff', { map: batikTex('#5b3a1e', '#d9b36c') }), gold = std('#e2b33c', { metalness: 0.7, roughness: 0.3 });
+    body.add(mesh(G('pSkirt', () => new THREE.CylinderGeometry(0.17, 0.3, 0.62, 22)), kain, 0, 0.36, 0));
+    body.add(mesh(G('pTorso', () => new THREE.CylinderGeometry(0.2, 0.18, 0.4, 20)), kebaya, 0, 0.86, 0));
+    body.add(mesh(G('pSash', () => new THREE.BoxGeometry(0.06, 0.42, 0.02)), gold, 0.08, 0.86, 0.18)).children.at(-1).rotation.z = 0.5;
+    for (const sd of [-1, 1]) { const arm = mesh(G('pArm', () => new THREE.CylinderGeometry(0.05, 0.045, 0.4, 10)), kebaya, sd * 0.24, 0.84, 0.02); arm.rotation.z = sd * 0.2; body.add(arm); }
+    const head = new THREE.Group(); head.position.set(0, 1.32, 0); body.add(head);
+    photoHead(head, photo, '#e9b98f', '#e9b98f');
+    head.add(mesh(G('pHair', () => new THREE.SphereGeometry(0.31, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2)), std('#1d1d22'), 0, 0.03, -0.03));
+    head.add(mesh(G('pBun', () => new THREE.SphereGeometry(0.13, 14, 10)), std('#1d1d22'), 0, 0.02, -0.32));
+    const siger = mesh(G('pSiger', () => new THREE.CylinderGeometry(0.33, 0.28, 0.12, 24, 1, true)), gold, 0, 0.22, 0); head.add(siger);
+    for (let k = -2; k <= 2; k++) head.add(mesh(G('pSigerTip', () => new THREE.ConeGeometry(0.05, 0.18, 6)), gold, k * 0.12, 0.36, 0.22 - Math.abs(k) * 0.05));
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // siger sudah jadi mahkota
+  },
+  // Harimau Sumatra: badan oranye berloreng, telinga bulat, ekor; foto di medali dada.
+  harimau(body, color, photo) {
+    const fur = std('#e8892b', { roughness: 0.7 }), stripe = std('#1d1d22'), white = std('#f7f1e3'), scarf = std(color);
+    for (const [x, z] of [[-0.14, 0.18], [0.14, 0.18], [-0.14, -0.2], [0.14, -0.2]]) body.add(mesh(G('hrLeg', () => new THREE.CylinderGeometry(0.07, 0.08, 0.3, 10)), fur, x, 0.2, z));
+    const torso = mesh(G('hrBody', () => new THREE.SphereGeometry(0.3, 22, 16)), fur, 0, 0.5, 0); torso.scale.set(0.95, 0.85, 1.35); body.add(torso);
+    for (let k = -2; k <= 2; k++) { const s = mesh(G('hrStripe', () => new THREE.TorusGeometry(0.29, 0.02, 6, 24, Math.PI)), stripe, 0, 0.52, k * 0.11); s.rotation.y = Math.PI / 2; body.add(s); }
+    const tail = mesh(G('hrTail', () => new THREE.CylinderGeometry(0.035, 0.03, 0.42, 8)), fur, 0, 0.62, -0.5); tail.rotation.x = -0.9; body.add(tail);
+    const head = new THREE.Group(); head.position.set(0, 0.9, 0.28); body.add(head);
+    head.add(mesh(G('hrHead', () => new THREE.SphereGeometry(0.25, 22, 16)), fur, 0, 0, 0));
+    head.add(mesh(G('hrMuzzle', () => new THREE.SphereGeometry(0.12, 14, 10)), white, 0, -0.07, 0.19)).children.at(-1).scale.set(1.3, 0.8, 0.8);
+    head.add(mesh(G('hrNose', () => new THREE.SphereGeometry(0.035, 8, 6)), std('#3a2020'), 0, -0.02, 0.29));
+    for (const sd of [-1, 1]) { head.add(mesh(G('hrEar', () => new THREE.SphereGeometry(0.075, 12, 8)), fur, sd * 0.18, 0.2, -0.02)); eye(head, sd * 0.09, 0.06, 0.21, 0.035); const st = mesh(G('hrFaceStripe', () => new THREE.BoxGeometry(0.1, 0.02, 0.02)), stripe, sd * 0.2, 0.05, 0.12); st.rotation.y = sd * 0.8; head.add(st); }
+    body.add(mesh(G('hrScarf', () => new THREE.TorusGeometry(0.17, 0.04, 8, 20)), scarf, 0, 0.72, 0.24)).children.at(-1).rotation.x = Math.PI / 2.4;
+    const badge = photoBadge(photo, 0.1); badge.position.set(0, 0.55, 0.42); body.add(badge);
+    return hatAnchor(head, 0, 0.1, 0, 0.75);
+  },
+  // Dukun: jubah gelap, ikat kepala, tongkat berbatu akik; foto di wajah.
+  dukun(body, color, photo) {
+    const robe = std('#3b2a4a', { roughness: 0.9 }), sash = std(color), wood = std('#6b4423'), gem = std('#3fd17a', { emissive: '#126b38', emissiveIntensity: 0.7 });
+    body.add(mesh(G('dRobe', () => new THREE.CylinderGeometry(0.2, 0.32, 0.85, 22)), robe, 0, 0.43, 0));
+    body.add(mesh(G('dSash', () => new THREE.CylinderGeometry(0.215, 0.23, 0.07, 22)), sash, 0, 0.62, 0));
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI - Math.PI / 2; body.add(mesh(G('dBead', () => new THREE.SphereGeometry(0.025, 8, 6)), std('#d9b36c'), Math.sin(a) * 0.17, 0.92 - Math.cos(a) * 0.12, 0.13)); }
+    for (const sd of [-1, 1]) { const arm = mesh(G('dArm', () => new THREE.CylinderGeometry(0.06, 0.08, 0.42, 10)), robe, sd * 0.26, 0.74, 0.02); arm.rotation.z = sd * 0.3; body.add(arm); }
+    body.add(mesh(G('dStaff', () => new THREE.CylinderGeometry(0.02, 0.025, 1.2, 8)), wood, 0.36, 0.6, 0.08));
+    body.add(mesh(G('dGem', () => new THREE.OctahedronGeometry(0.07)), gem, 0.36, 1.24, 0.08));
+    const head = new THREE.Group(); head.position.set(0, 1.18, 0); body.add(head);
+    photoHead(head, photo, '#c98e62', '#c98e62');
+    const iket = mesh(G('dIket', () => new THREE.CylinderGeometry(0.31, 0.31, 0.08, 24, 1, true)), std('#fff', { map: batikTex('#2b1d12', '#c9a227') }), 0, 0.15, 0); head.add(iket);
+    head.add(mesh(G('dBeard', () => new THREE.ConeGeometry(0.1, 0.2, 10)), std('#e9e4d6'), 0, -0.3, 0.2)).children.at(-1).rotation.x = Math.PI;
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // ikat kepala sudah jadi topi
+  },
+  // Becak: kursi penumpang di depan, sepeda di belakang, kap terpal sewarna pemain; foto di sandaran.
+  becak(body, color, photo) {
+    const paint = std(color, { roughness: 0.4, metalness: 0.15 }), seat = std('#8b1e3f'), tire = std('#1b1b1f', { roughness: 0.9 }), steel = std('#c9ccd3', { metalness: 0.8, roughness: 0.25 });
+    for (const sd of [-1, 1]) { const w = mesh(G('bWheelF', () => new THREE.TorusGeometry(0.15, 0.025, 8, 20)), tire, sd * 0.3, 0.15, 0.2); w.rotation.y = Math.PI / 2; body.add(w); }
+    const back = mesh(G('bWheelB', () => new THREE.TorusGeometry(0.15, 0.025, 8, 20)), tire, 0, 0.15, -0.45); back.rotation.y = Math.PI / 2; body.add(back);
+    body.add(mesh(G('bTub', () => new THREE.BoxGeometry(0.58, 0.22, 0.42)), paint, 0, 0.36, 0.2));
+    body.add(mesh(G('bSeat', () => new THREE.BoxGeometry(0.5, 0.06, 0.3)), seat, 0, 0.5, 0.18));
+    const rest = windowPane(photo, 0.44, 0.24); rest.position.set(0, 0.66, 0.02); body.add(rest);
+    body.add(mesh(G('bRestBack', () => new THREE.BoxGeometry(0.5, 0.3, 0.03)), seat, 0, 0.66, 0.0));
+    const hood = mesh(G('bHood', () => new THREE.CylinderGeometry(0.32, 0.32, 0.5, 18, 1, true, -Math.PI / 2, Math.PI)), std(shade(color, 0.7), { side: THREE.DoubleSide }), 0, 0.7, 0.1); hood.rotation.z = Math.PI / 2; hood.rotation.y = Math.PI / 2; body.add(hood);
+    body.add(mesh(G('bFrame', () => new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8)), steel, 0, 0.32, -0.22)).children.at(-1).rotation.x = Math.PI / 2;
+    body.add(mesh(G('bSaddle', () => new THREE.BoxGeometry(0.1, 0.05, 0.16)), seat, 0, 0.5, -0.38));
+    body.add(mesh(G('bPost', () => new THREE.CylinderGeometry(0.018, 0.018, 0.34, 8)), steel, 0, 0.32, -0.38));
+    return hatAnchor(body, 0, 0.98, 0.1, 0.6);
+  },
+  // Jawara: baju pangsi hitam, ikat kepala, sabuk & golok; foto di wajah.
+  jawara(body, color, photo) {
+    const pangsi = std('#1d1d22', { roughness: 0.8 }), belt = std(color), skin = std('#c98e62'), steel = std('#c9ccd3', { metalness: 0.8, roughness: 0.25 });
+    for (const sd of [-1, 1]) body.add(mesh(G('jLeg', () => new THREE.CylinderGeometry(0.1, 0.11, 0.42, 12)), pangsi, sd * 0.12, 0.27, 0));
+    body.add(mesh(G('jTorso', () => new THREE.CylinderGeometry(0.25, 0.22, 0.48, 18)), pangsi, 0, 0.74, 0));
+    body.add(mesh(G('jBelt', () => new THREE.CylinderGeometry(0.24, 0.24, 0.08, 18)), belt, 0, 0.52, 0));
+    const golok = mesh(G('jGolok', () => new THREE.BoxGeometry(0.05, 0.36, 0.02)), steel, 0.24, 0.42, 0.14); golok.rotation.z = 0.3; body.add(golok);
+    body.add(mesh(G('jHilt', () => new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8)), std('#6b4423'), 0.3, 0.62, 0.14)).children.at(-1).rotation.z = 0.3;
+    for (const sd of [-1, 1]) { const arm = mesh(G('jArm', () => new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10)), pangsi, sd * 0.3, 0.72, 0); arm.rotation.z = sd * 0.25; body.add(arm); body.add(mesh(G('jFist', () => new THREE.SphereGeometry(0.06, 10, 8)), skin, sd * 0.36, 0.52, 0)); }
+    const head = new THREE.Group(); head.position.set(0, 1.22, 0); body.add(head);
+    photoHead(head, photo, '#c98e62', '#c98e62');
+    head.add(mesh(G('jIket', () => new THREE.CylinderGeometry(0.31, 0.31, 0.1, 24, 1, true)), std('#fff', { map: batikTex('#3a1d0e', '#d97a2b') }), 0, 0.14, 0));
+    head.add(mesh(G('jIketTail', () => new THREE.ConeGeometry(0.06, 0.18, 4)), std('#3a1d0e'), 0, 0.14, -0.33)).children.at(-1).rotation.x = -Math.PI / 2;
+    head.add(mesh(G('jMoustache', () => new THREE.BoxGeometry(0.18, 0.025, 0.02)), std('#1d1d22'), 0, -0.07, 0.29));
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // ikat kepala sudah jadi topi
+  },
+  // Pedagang kaki lima: penjual berapron di samping gerobak berpayung; foto di wajah.
+  pedagang(body, color, photo) {
+    const shirt = std(color), apron = std('#f7f5ef'), cart = std('#b5432a', { roughness: 0.6 }), wood = std('#8a6a3a'), tire = std('#1b1b1f');
+    body.add(mesh(G('kLegs', () => new THREE.CylinderGeometry(0.13, 0.15, 0.4, 14)), std('#3a3a44'), -0.18, 0.2, 0));
+    body.add(mesh(G('kTorso', () => new THREE.CylinderGeometry(0.17, 0.15, 0.4, 16)), shirt, -0.18, 0.6, 0));
+    body.add(mesh(G('kApron', () => new THREE.BoxGeometry(0.26, 0.34, 0.02)), apron, -0.18, 0.55, 0.16));
+    body.add(mesh(G('kCart', () => new THREE.BoxGeometry(0.34, 0.26, 0.4)), cart, 0.2, 0.36, 0));
+    body.add(mesh(G('kCartTop', () => new THREE.BoxGeometry(0.38, 0.03, 0.44)), wood, 0.2, 0.5, 0));
+    body.add(mesh(G('kWheel', () => new THREE.CylinderGeometry(0.1, 0.1, 0.04, 14)), tire, 0.2, 0.12, 0.22)).children.at(-1).rotation.x = Math.PI / 2;
+    body.add(mesh(G('kPole', () => new THREE.CylinderGeometry(0.012, 0.012, 0.6, 6)), wood, 0.2, 0.8, 0));
+    body.add(mesh(G('kUmbrella', () => new THREE.ConeGeometry(0.34, 0.16, 12)), std(shade(color, 1.2)), 0.2, 1.12, 0));
+    for (let k = 0; k < 3; k++) body.add(mesh(G('kBowl', () => new THREE.SphereGeometry(0.045, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2)), std('#f4c21a'), 0.1 + k * 0.1, 0.52, 0.05));
+    const head = new THREE.Group(); head.position.set(-0.18, 1.04, 0); head.scale.setScalar(0.85); body.add(head);
+    photoHead(head, photo, '#c98e62', '#c98e62');
+    return head;
+  },
+  // Satpol PP: seragam khaki, baret, pentungan & map surat segel; foto di wajah.
+  satpol(body, color, photo) {
+    const khaki = std('#8a7a4e', { roughness: 0.75 }), dark = std('#2b2b30'), beret = std(color), paper = std('#f7f5ef'), red = std('#d9412f');
+    for (const sd of [-1, 1]) { body.add(mesh(G('sLeg', () => new THREE.CylinderGeometry(0.09, 0.1, 0.42, 12)), khaki, sd * 0.11, 0.27, 0)); body.add(mesh(G('sBoot', () => new THREE.BoxGeometry(0.14, 0.1, 0.2)), dark, sd * 0.11, 0.05, 0.03)); }
+    body.add(mesh(G('sTorso', () => new THREE.CylinderGeometry(0.24, 0.21, 0.48, 18)), khaki, 0, 0.74, 0));
+    body.add(mesh(G('sBelt', () => new THREE.CylinderGeometry(0.22, 0.22, 0.06, 18)), dark, 0, 0.52, 0));
+    body.add(mesh(G('sBadge', () => new THREE.CircleGeometry(0.045, 6)), std('#e2b33c', { metalness: 0.6 }), 0.1, 0.85, 0.235));
+    for (const sd of [-1, 1]) { const arm = mesh(G('sArm', () => new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10)), khaki, sd * 0.29, 0.72, 0); arm.rotation.z = sd * 0.25; body.add(arm); }
+    const baton = mesh(G('sBaton', () => new THREE.CylinderGeometry(0.025, 0.025, 0.42, 8)), dark, -0.36, 0.5, 0.06); baton.rotation.z = -0.2; body.add(baton);
+    const folder = mesh(G('sFolder', () => new THREE.BoxGeometry(0.2, 0.26, 0.02)), paper, 0.37, 0.56, 0.1); folder.rotation.y = -0.4; body.add(folder);
+    body.add(mesh(G('sStamp', () => new THREE.BoxGeometry(0.14, 0.04, 0.005)), red, 0.37, 0.6, 0.115)).children.at(-1).rotation.y = -0.4;
+    const head = new THREE.Group(); head.position.set(0, 1.22, 0); body.add(head);
+    photoHead(head, photo, '#c98e62', '#c98e62');
+    const cap = mesh(G('sBeret', () => new THREE.SphereGeometry(0.32, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2.4)), beret, 0.05, 0.12, 0); cap.scale.set(1.05, 0.5, 1.05); cap.rotation.z = -0.18; head.add(cap);
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // baret sudah jadi topi
+  },
+  alien(body, color, photo) {
+    const skin = std('#7fd36b', { roughness: 0.55 }), suit = std('#c7ccd6', { metalness: 0.5, roughness: 0.35 }), ufo = std(color, { metalness: 0.4, roughness: 0.4 }), glow = std('#b6f0ff', { emissive: '#7fe3ff', emissiveIntensity: 0.8 });
+    const disc = mesh(G('aDisc', () => new THREE.CylinderGeometry(0.42, 0.3, 0.1, 28)), ufo, 0, 0.08, 0); body.add(disc);
+    body.add(mesh(G('aRim', () => new THREE.TorusGeometry(0.4, 0.025, 8, 32)), suit, 0, 0.12, 0)).children.at(-1).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; body.add(mesh(G('aLamp', () => new THREE.SphereGeometry(0.03, 8, 6)), glow, Math.cos(a) * 0.36, 0.08, Math.sin(a) * 0.36)); }
+    for (const sd of [-1, 1]) body.add(mesh(G('aLeg', () => new THREE.CylinderGeometry(0.06, 0.07, 0.34, 10)), suit, sd * 0.09, 0.3, 0));
+    body.add(mesh(G('aTorso', () => new THREE.CylinderGeometry(0.17, 0.2, 0.4, 18)), suit, 0, 0.64, 0));
+    body.add(mesh(G('aCore', () => new THREE.CircleGeometry(0.06, 16)), glow, 0, 0.7, 0.18));
+    for (const sd of [-1, 1]) { const arm = mesh(G('aArm', () => new THREE.CylinderGeometry(0.045, 0.04, 0.4, 10)), skin, sd * 0.24, 0.64, 0); arm.rotation.z = sd * 0.35; body.add(arm); }
+    const head = new THREE.Group(); head.position.set(0, 1.1, 0); body.add(head);
+    photoHead(head, photo, '#7fd36b', '#7fd36b');
+    for (const sd of [-1, 1]) {
+      const ant = mesh(G('aAnt', () => new THREE.CylinderGeometry(0.015, 0.015, 0.3, 6)), skin, sd * 0.13, 0.36, 0); ant.rotation.z = -sd * 0.35; head.add(ant);
+      head.add(mesh(G('aBulb', () => new THREE.SphereGeometry(0.05, 12, 8)), std(color, { emissive: color, emissiveIntensity: 0.5 }), sd * 0.19, 0.5, 0));
+    }
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // antena sudah jadi hiasan kepala
+  },
   // Pesawat kecil berwarna pemain; foto tampil di kaca kokpit.
   pesawat(body, color, photo) {
     const paint = std(color, { roughness: 0.35, metalness: 0.25 }), white = std('#f7f5ef', { roughness: 0.4 });

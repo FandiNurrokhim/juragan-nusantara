@@ -150,7 +150,7 @@ Daftar liontin ada di `pendants.json`. Untuk menambah liontin cukup tambah satu 
 ## Fitur
 
 - **Papan 3D** (Three.js): putar dengan geser, perbesar dengan cubit/scroll, ketuk petak untuk melihat detailnya. Tombol 🎯 Ikuti membuat kamera mengikuti bidak yang sedang jalan.
-- **Model bidak**: Manusia, Pejabat Gendut, Kepala Sawit, Monster, Tuyul, Pocong, Kucing, Komodo, Ayam Jago, Angkot, atau Pesawat, supaya pemain mudah dibedakan. Foto tampil di wajah (manusia, pejabat, kepala sawit, tuyul, pocong), medali (hewan dan monster), atau kaca depan (kendaraan).
+- **Model bidak**: Manusia, Pejabat Gendut, Kepala Sawit, Monster, Tuyul, Pocong, Kucing, Komodo, Ayam Jago, Angkot, Pesawat, Robot, Monyet, Superhero, Ojol, Naga, Putri Keraton, Harimau, Dukun, Becak, Jawara, Pedagang Kaki Lima, Satpol PP, atau Alien, supaya pemain mudah dibedakan. Foto tampil di wajah (manusia, pejabat, kepala sawit, tuyul, pocong), medali (hewan dan monster), atau kaca depan (kendaraan).
 - **Avatar 3D** setiap pemain dengan wajah dari foto yang diunggah, serta pilihan warna, baju (kaos, kemeja, batik, jas, hoodie, kebaya), rambut (pendek, panjang, kuncir, botak), topi (peci, topi, blangkon, helm proyek, caping, mahkota), aksesoris (kacamata hitam, kalung emas, dasi kupu-kupu, koper uang, kumis, masker, headphone, tas selempang), dan warna kulit. Avatar hanya bisa diubah di lobi. Setelah permainan dimulai, avatar dikunci supaya stat model tidak bisa ditukar di tengah jalan.
 - **Bot** dijalankan oleh server: membeli tanah, upgrade tanah, membayar tagihan, menggadaikan aset, travelling, dan memakai kartu sakti.
 - **Suara khusus saat gajian dan saat menerima sewa** dari pemain lain (hanya di layar penerima), disertai notifikasi dan kartu pemain yang berkedip hijau.
