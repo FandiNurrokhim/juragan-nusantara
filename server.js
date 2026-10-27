@@ -224,7 +224,7 @@ function publicState() {
     ranking: game.ranking, winBy: game.winBy || null, winTeam: game.winTeam != null ? game.winTeam : null, seq: ++game.seq,
     // lama permainan (ms) dihitung server, supaya tidak bergantung jam di HP pemain
     elapsed: game.startedAt ? (game.endedAt || Date.now()) - game.startedAt : 0,
-    mode: game.mode || 'wni', teams: !!game.teams, blackholes: game.blackholes || {}, idleLeft: idleLeft(), tileFx: game.tileFx || null, festival: game.festival || null, lastSlot: game.lastSlot || null, fx: { seq: game.fxSeq, list: game.fx, notices: game.notices },
+    mode: game.mode || 'wni', teams: !!game.teams, blackholes: game.blackholes || {}, blackholeExit: game.blackholeExit || {}, warp: game.warp || null, idleLeft: idleLeft(), tileFx: game.tileFx || null, festival: game.festival || null, lastSlot: game.lastSlot || null, fx: { seq: game.fxSeq, list: game.fx, notices: game.notices },
     players: game.players.map(p => ({ ...p, connected: isOnline(p) }))
   };
 }
@@ -234,7 +234,7 @@ function broadcast() { touchIdle(); io.emit('state', publicState()); save(); sch
  * Hitungan ulang setiap kali keadaan giliran berubah (giliran, dadu, keputusan yang menunggu, uang minus).
  * Pemain manusia yang diam lebih dari TURN_IDLE_SECONDS dijalankan otomatis dengan pilihan aman. */
 // Batas diam untuk keadaan sekarang: Travelling (termasuk pindah sebaris) lebih longgar.
-const idleLimit = () => (game.pending && game.pending.type === 'travel' ? TRAVEL_IDLE_SECONDS : TURN_IDLE_SECONDS) * 1000;
+const idleLimit = () => (game.pending && ['travel', 'blackhole'].includes(game.pending.type) ? TRAVEL_IDLE_SECONDS : TURN_IDLE_SECONDS) * 1000;
 let idleSig = '', idleSince = Date.now();
 function touchIdle() {
   const c = cur();
@@ -252,7 +252,7 @@ function idleAction(c) {
     case 'ojolStep': return ['ojolStep', { adj: 0 }, 'maju sesuai dadu'];
     case 'takeover': return ['takeover', { accept: false }, 'tawaran ambil alih dilewati'];
     case 'travel': return ['travel', { tile: c.pos }, 'tetap di tempat'];
-    case 'blackhole': return ['blackhole', { tile: botBlackhole(c) }, 'lubang hitam dipasang otomatis'];
+    case 'blackhole': return game.blackholes && game.blackholes[c.id] != null ? ['blackhole', { skip: true }, 'lubang hitam lama tetap dipakai'] : ['blackhole', { tile: botBlackhole(c) }, 'lubang hitam dipasang otomatis'];
     case 'slot': return ['slotPlay', { play: false }, 'Mesin Game dilewati'];
     case 'power': return ['keepCard', {}, 'kartu disimpan'];
     case 'cardRoll': return ['rollCard', { shield: false }, 'dadu kartu dilempar otomatis'];
@@ -597,10 +597,18 @@ function resumeTravel(pend, p) {
   log(`✈️ ${p.name} lanjut travelling, bebas pilih tujuan`);
 }
 const redeemCost = i => Math.round((game.props[i].mortgageValue || BOARD[i].price / 2) * 1.1);
+// 👸 Titah Raja: 90% peluang menolak ambil alih / Akuisisi / Kontrak / Tukar atas kota sang Putri.
+function titahBlocks(o, i, what) {
+  if (skillOf(o) !== 'titah') return false;
+  if (!skillHit(o)) { log(`👸 Titah Raja ${o.name} gagal melindungi ${BOARD[i].name} dari ${what}!`); return false; }
+  skillBadge(o); fx('shield');
+  log(`👸 ${BOARD[i].name} dilindungi Titah Raja ${o.name}, ${what} ditolak`);
+  return true;
+}
 function offerTakeover(p, i) {
   const pr = game.props[i], o = pr && P(pr.owner);
   if (!isNormal() || !o || o.id === p.id || sameTeam(o, p) || pr.lease || BOARD[i].type !== 'city' || (pr.houses >= 5 && skillOf(p) !== 'nego')) return;
-  if (skillOf(o) === 'titah') { log(`👸 ${BOARD[i].name} dilindungi Titah Raja ${o.name}, tidak bisa diambil alih`); return; }
+  if (titahBlocks(o, i, 'ambil alih')) return;
   const price = takeoverPrice(p, i);
   if (p.money < price && !(p.vouchers > 0 && p.money >= Math.round(price / 2 / 1000) * 1000)) return;
   // Travelling (mis. dari Tiket Pesawat) tidak batal: ditunda sampai keputusan ambil alih selesai.
@@ -653,28 +661,36 @@ function sideSkills(p, i) {
   }
 }
 // Petak tempat bidak berhenti. Sewa dan pajak jadi tagihan yang harus dibayar lewat tombol.
+// Lubang hitam: setiap lawan yang berhenti di sana tersedot ke kota Alien tempat lubang itu dibuka,
+// terkurung beberapa giliran, lalu petak kota itu diproses seperti biasa (bayar sewa, dll.).
+// Lubangnya tetap aktif sampai Alien memindahkannya (atau bangkrut/menyerah).
 function resolveTile(p) {
-  const i = p.pos;
   if (!isNormal()) return resolveTileBase(p);
-  const bh = game.blackholes || {}, oid = Object.keys(bh).find(id => bh[id] === i && id !== p.id), o = oid && P(oid);
-  if (oid) delete bh[oid];
-  if (o && !o.bankrupt && !sameTeam(o, p) && !shielded(p, o, 'Lubang Hitam')) {
-    const n = skillData(o).turns || 2;
-    p.skip = (p.skip || 0) + n; skillBadge(o); tileFx(i, 'disaster'); fx('seize');
-    if (cur() && cur().id === p.id) game.doubles = 0;
-    log(`🕳️ ${p.name} tersedot lubang hitam milik ${o.name} di ${BOARD[i].name}: terkurung ${n} giliran`);
+  const bh = game.blackholes || {}, ex = game.blackholeExit || {};
+  const oid = Object.keys(bh).find(id => bh[id] === p.pos && id !== p.id), o = oid && P(oid);
+  if (oid) { const hole = bh[oid], exit = ex[oid];
+    if (o && !o.bankrupt && !sameTeam(o, p) && !shielded(p, o, 'Lubang Hitam')) {
+      const n = skillData(o).turns || 2, to = exit != null && realOwner(exit) === o.id ? exit : hole;
+      p.pos = to; p.skip = (p.skip || 0) + n; skillBadge(o); fx('seize');
+      if (cur() && cur().id === p.id) game.doubles = 0;
+      game.warp = { seq: ((game.warp && game.warp.seq) || 0) + 1, pid: p.id, from: hole, to };
+      log(to !== hole ? `🕳️ ${p.name} tersedot lubang hitam di ${BOARD[hole].name} dan terlempar ke ${BOARD[to].name} milik ${o.name}: terkurung ${n} giliran`
+        : `🕳️ ${p.name} tersedot lubang hitam milik ${o.name} di ${BOARD[hole].name}: terkurung ${n} giliran`);
+    }
   }
-  const own = realOwner(i) === p.id;
+  const i = p.pos, own = realOwner(i) === p.id;
   resolveTileBase(p);
   if (own && !p.bankrupt && p.pos === i && skillOf(p) === 'lubang' && skillHit(p)) {
     skillBadge(p);
     log(`🛸 ${p.name} siap membuka lubang hitam`);
-    game.pending = { type: 'blackhole', next: game.pending || null };
+    game.pending = { type: 'blackhole', from: i, next: game.pending || null };
   }
 }
+// Alien yang berhenti di lubang hitam buatannya sendiri tidak membayar apa pun di petak itu.
+const ownHole = (p, i) => isNormal() && !!game.blackholes && game.blackholes[p.id] === i;
 function resolveTileBase(p) {
   const i = p.pos, t = BOARD[i];
-  sideSkills(p, i);
+  if (!ownHole(p, i)) sideSkills(p, i);
   if (isBuyable(i)) {
     const pr = game.props[i];
     // properti lawan saja: bukan milik sendiri (termasuk yang sedang kamu kontrakkan ke orang lain) dan bukan milik rekan setim
@@ -702,6 +718,9 @@ function resolveTileBase(p) {
     } else if (pr.mortgaged) {
       log(`🏦 ${t.name} sedang digadai ke bank, ${p.name} bebas sewa`);
       offerTakeover(p, i); // boleh ditebus dari bank lalu langsung diambil alih
+    } else if (ownHole(p, i)) {
+      log(`🛸 ${p.name} berdiri di lubang hitamnya sendiri di ${t.name}, bebas sewa`);
+      offerTakeover(p, i); // tetap boleh diambil alih
     } else if (pr.owner !== p.id && !pr.mortgaged) {
       const owner = P(pr.owner);
       if (owner && !owner.bankrupt) {
@@ -726,7 +745,8 @@ function resolveTileBase(p) {
     log(`🏁 ${p.name} berhenti tepat di Mulai: boleh membangun di salah satu propertinya`);
     return;
   }
-  if (t.type === 'tax' && p.hand.bebaspajak > 0) { p.hand.bebaspajak--; log(`🧾 ${p.name} memakai Bebas Pajak di ${t.name}`); fx('shield'); }
+  if (t.type === 'tax' && ownHole(p, i)) log(`🛸 ${p.name} berdiri di lubang hitamnya sendiri, bebas pajak`);
+  else if (t.type === 'tax' && p.hand.bebaspajak > 0) { p.hand.bebaspajak--; log(`🧾 ${p.name} memakai Bebas Pajak di ${t.name}`); fx('shield'); }
   else if (t.type === 'tax') {
     // Pajak dinamis: makin banyak properti, makin besar pajaknya
     const n = ownedBy(p.id).filter(j => !game.props[j].mortgaged).length;
@@ -998,7 +1018,6 @@ function normalTargets(p, card) {
   return Object.keys(game.props).map(Number).filter(i => {
     const pr = game.props[i], o = pr.owner && P(pr.owner);
     if (!o || o.id === p.id || sameTeam(o, p) || o.bankrupt || pr.lease) return false;
-    if (skillOf(o) === 'titah' && ['akuisisi', 'kontrak', 'tukar'].includes(card)) return false; // 👸 Titah Raja
     if (card === 'akuisisi' || card === 'tukar') return pr.houses < 5 && BOARD[i].type === 'city';
     if (card === 'gempa') return pr.houses > 0 && pr.houses < 5;
     if (card === 'badai') return pr.houses > 0 && BOARD[i].type === 'city';
@@ -1128,15 +1147,18 @@ function burn(i) {
   log(`🔥 Kebun sawit di ${BOARD[i].name} hangus, tinggal tanah kosong`);
 }
 
-function netWorth(p) {
-  let v = p.money;
+// Nilai semua properti dalam bentuk uang (tanah + bangunan). Properti yang digadai dihitung
+// nilainya dikurangi utang gadainya ke bank, supaya uang pinjaman tidak terhitung dua kali.
+function propWorth(p) {
+  let v = 0;
   for (const [i, pr] of Object.entries(game.props)) {
     if (pr.owner !== p.id) continue;
-    const t = BOARD[i];
-    v += assetValue(+i) - (pr.mortgaged ? (pr.mortgageValue || t.price / 2) : 0);
+    v += assetValue(+i) - (pr.mortgaged ? (pr.mortgageValue || BOARD[i].price / 2) : 0);
   }
-  return v - (p.loan || 0);
+  return v;
 }
+// Kekayaan = uang + nilai properti (dikurangi pinjaman bank). Dipakai juga untuk pemenang saat waktu habis.
+const netWorth = p => p.money + propWorth(p) - (p.loan || 0);
 // Peringkat: yang masih bertahan dulu (urut kekayaan), lalu yang gugur paling akhir.
 // ⏱ Batas waktu: cek tiap 5 detik. Peringatan 5 menit sebelum habis, lalu permainan selesai otomatis.
 const LIMIT_MS = GAME_MINUTES * 60 * 1000;
@@ -1145,13 +1167,14 @@ function checkTimeLimit() {
   const left = LIMIT_MS - (Date.now() - game.startedAt);
   if (left <= 5 * 60 * 1000 && left > 0 && !game.timeWarned) {
     game.timeWarned = true;
-    game.announce = { seq: (game.announce ? game.announce.seq : 0) + 1, icon: '⏱', title: 'Waktu tinggal 5 menit!', text: `Permainan berakhir otomatis setelah ${GAME_MINUTES} menit. Saat waktu habis, ${game.teams ? 'tim' : 'pemain'} dengan kekayaan terbesar yang menang.` };
+    game.announce = { seq: (game.announce ? game.announce.seq : 0) + 1, icon: '⏱', title: 'Waktu tinggal 5 menit!', text: `Permainan berakhir otomatis setelah ${GAME_MINUTES} menit. Saat waktu habis, ${game.teams ? 'tim' : 'pemain'} dengan kekayaan terbesar (uang + nilai properti) yang menang.` };
     log(`⏱ Waktu permainan tinggal 5 menit`);
     broadcast();
   }
   if (left > 0) return;
   game.fx = []; game.notices = [];
-  log(`⏱ Waktu ${GAME_MINUTES} menit habis! Permainan selesai, pemenang dihitung dari total kekayaan.`);
+  log(`⏱ Waktu ${GAME_MINUTES} menit habis! Permainan selesai, pemenang dihitung dari uang + nilai properti.`);
+  for (const q of alive()) log(`💼 ${q.name}: uang ${rp(q.money)} + properti ${rp(propWorth(q))}${q.loan ? ` − pinjaman ${rp(q.loan)}` : ''} = ${rp(netWorth(q))}`);
   const keys = [...new Set(alive().map(sideKey))];
   const worthOf = key => alive().filter(q => sideKey(q) === key).reduce((a, q) => a + netWorth(q), 0);
   const bestKey = keys.sort((a, b) => worthOf(b) - worthOf(a))[0];
@@ -1166,7 +1189,7 @@ function endGame(winnerId, why) {
   game.endedAt = Date.now();
   game.pending = null;
   game.ranking = game.players
-    .map(p => ({ id: p.id, worth: p.bankrupt ? 0 : netWorth(p), bankrupt: !!p.bankrupt, outAt: p.outAt || 0 }))
+    .map(p => ({ id: p.id, worth: p.bankrupt ? 0 : netWorth(p), cash: p.bankrupt ? 0 : p.money, props: p.bankrupt ? 0 : propWorth(p), loan: p.bankrupt ? 0 : p.loan || 0, bankrupt: !!p.bankrupt, outAt: p.outAt || 0 }))
     .sort((a, b) => (a.bankrupt - b.bankrupt) || (a.bankrupt ? b.outAt - a.outAt : b.worth - a.worth));
   game.winner = winnerId || game.ranking[0].id;
   const wp = P(game.winner);
@@ -1251,6 +1274,7 @@ function eliminate(p, to, why) {
   if (game.festival && !game.props[game.festival.tile].owner) game.festival = null;
   if (to && p.money < 0) to.money -= Math.min(-p.money, Math.max(0, to.money)); // utang yang tak terbayar tidak ikut diterima
   if (game.blackholes) delete game.blackholes[p.id];
+  if (game.blackholeExit) delete game.blackholeExit[p.id];
   Object.assign(p, { money: 0, bankrupt: true, hand: emptyHand(), inJail: false, skip: 0, outAt: ++game.outSeq, loan: 0, loanPrincipal: 0, installments: [] });
   fx('bankrupt');
   log(`💀 ${p.name} gugur ${why}. Semua tanahnya disita negara dan kembali jadi tanah kosong.`);
@@ -1434,7 +1458,7 @@ const actions = {
     game.festival = null; game.lastSlot = null;
     game.decks = { kesempatan: fullDeck('kesempatan', false), musibah: fullDeck('musibah', false) };
     game.startedAt = Date.now(); game.endedAt = 0; game.timeWarned = false;
-    game.phase = 'playing'; game.turn = 0; game.props = freshProps(); game.blackholes = {}; game.rolled = false; game.doubles = 0; game.outSeq = 0;
+    game.phase = 'playing'; game.turn = 0; game.props = freshProps(); game.blackholes = {}; game.blackholeExit = {}; game.warp = null; game.rolled = false; game.doubles = 0; game.outSeq = 0;
     game.specialAdded = false; game.announce = null; game.ultraDrawn = [];
     log(isNormal() ? `🎲 Mode Normal dimulai! Modal ${rp(NORMAL.startMoney)} untuk semua, gaji ${rp(NORMAL.salary)} per putaran.`
       : `🇮🇩 Mode WNI dimulai! Modal awal tergantung avatar (Rp 5–10 jt), gaji ${rp(SALARY)} per putaran. Bertahanlah selama mungkin.`);
@@ -1679,13 +1703,20 @@ const actions = {
     needTurn(p);
     const pend = game.pending;
     if (!pend || pend.type !== 'blackhole') fail('Kamu tidak sedang membuka lubang hitam.');
+    const cur0 = game.blackholes && game.blackholes[p.id];
+    if (d && d.skip) { // lubang hitam lama tetap dipakai
+      game.pending = pend.next || null;
+      log(cur0 != null ? `🕳️ ${p.name} membiarkan lubang hitamnya tetap di ${BOARD[cur0].name}` : `${p.name} tidak membuka lubang hitam`);
+      return;
+    }
     const i = Number(d.tile);
     if (!Number.isInteger(i) || i < 0 || i >= NT()) fail('Pilih petak untuk lubang hitam.');
     game.blackholes = game.blackholes || {};
     game.blackholes[p.id] = i;
+    game.blackholeExit = game.blackholeExit || {};
+    if (pend.from != null) game.blackholeExit[p.id] = pend.from;
     game.pending = pend.next || null;
-    tileFx(i, 'disaster');
-    log(`🕳️ ${p.name} membuka lubang hitam di ${BOARD[i].name}`);
+    log(`🕳️ ${p.name} membuka lubang hitam di ${BOARD[i].name}${pend.from != null && pend.from !== i ? `, terhubung ke ${BOARD[pend.from].name}` : ''}`);
   },
   travel(p, d) {
     needTurn(p);
@@ -1893,6 +1924,7 @@ const actions = {
       if (card === 'tukar' && !mySwappable(p).includes(mine)) fail('Pilih kotamu yang mau ditukar (belum Landmark).');
       run = () => {
         if (shielded(o, p, def.name)) return;
+        if (card === 'tukar' && titahBlocks(o, i, def.name)) return;
         fx('seize');
         if (card === 'gempa' || card === 'badai') {
           const was = pr.houses;
@@ -1907,6 +1939,7 @@ const actions = {
       if (!normalTargets(p, card).includes(i)) fail(card === 'akuisisi' ? 'Pilih properti lawan yang belum jadi Landmark.' : 'Pilih properti milik lawan.');
       run = () => {
         if (shielded(o, p, def.name)) return;
+        if (card !== 'sabotase' && titahBlocks(o, i, def.name)) return;
         fx('seize');
         if (card === 'sabotase') { pr.slump = { turns: NORMAL.slumpTurns }; log(`💣 ${p.name} menyabotase ${BOARD[i].name} milik ${o.name}: sewa turun 50% selama ${NORMAL.slumpTurns} giliran`); }
         if (card === 'akuisisi') { pr.owner = p.id; log(`📜 ${p.name} mengakuisisi ${BOARD[i].name}${pr.houses ? ' beserta bangunannya' : ''} dari ${o.name}`); }
@@ -2113,7 +2146,12 @@ function botDecide() {
     if (pend.type === 'power') return botPower(c, pend.card, true);
     if (pend.type === 'cardRoll') return [c, 'rollCard', { shield: botShouldShield(c, pend) }];
     if (pend.type === 'travel') return [c, 'travel', { tile: botTravelTarget(c, pend.row) }];
-    if (pend.type === 'blackhole') return [c, 'blackhole', { tile: botBlackhole(c) }];
+    if (pend.type === 'blackhole') {
+      // pertahankan lubang lama kalau ada lawan 2–12 petak di belakangnya (masih mungkin terinjak)
+      const old = game.blackholes && game.blackholes[c.id];
+      const live = old != null && rivalsOf(c).some(o => { const d = (old - o.pos + NT()) % NT(); return d >= 2 && d <= 12; });
+      return live ? [c, 'blackhole', { skip: true }] : [c, 'blackhole', { tile: botBlackhole(c) }];
+    }
     if (pend.type === 'fire') return [c, 'fireChoice', { extinguish: c.pejabat > 0 || c.money >= LAND.fireCost + 1.5e6 }];
     if (pend.type === 'poison') return [c, 'poisonChoice', { pay: c.money >= LAND.poisonFine + 1e6 }];
     if (pend.type === 'bill') {

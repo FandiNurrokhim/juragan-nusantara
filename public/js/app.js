@@ -94,7 +94,7 @@ function face(p, cls = 'face') {
 /* ---------- Event dari state (suara, animasi, kartu) ---------- */
 function afterMoves(fn) { if (board3d) board3d.whenIdle(fn); else fn(); }
 // Toast kecil saat skill avatar atau liontinku aktif, supaya terasa (dibaca dari catatan permainan).
-const SKILL_LOG = { lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
+const SKILL_LOG = { lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /dilindungi Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
   gentayangan: /digentayangi/, colong: /dicolong tuyul/, teror: /meneror/, panen: /Panen Raya/ };
 function announceMyEffects(prev) {
   const p = meP(); if (!p) return;
@@ -602,8 +602,10 @@ function renderDock() {
       html += `<div class="msg">${info[0]}<small>${info[1]}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Lihat pilihan</button>`);
     } else if (pend && pend.type === 'blackhole') {
-      html += `<div class="msg">🕳️ Lubang Hitam<small>Pilih petak untuk menjebak lawan.</small></div>`;
+      const old = S.blackholes && S.blackholes[me];
+      html += `<div class="msg">🕳️ Lubang Hitam<small>${old != null ? `Pindahkan lubang hitammu, atau biarkan tetap di ${esc(W.board[old].name)}.` : 'Pilih petak untuk menjebak lawan.'}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Pilih petak</button>`);
+      if (old != null) acts.push(`<button class="btn" data-bhkeep>Tetap di ${esc(W.board[old].name)}</button>`);
     } else if (pend && pend.type === 'travel') {
       html += `<div class="msg">${pend.row != null ? '🧭 Pindah sebaris' : '🧳 Travelling!'}<small>${pend.row != null ? 'Pilih petak mana saja di baris ini.' : 'Pilih kotak tujuan mana saja.'}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Pilih tujuan</button>`);
@@ -742,6 +744,7 @@ function bindActs(root, after) {
   root.querySelectorAll('[data-power]').forEach(b => b.onclick = () => { after && after(); usePower(b.dataset.power); });
   root.querySelectorAll('[data-tile]').forEach(b => b.onclick = () => openTile(+b.dataset.tile));
   root.querySelectorAll('[data-sheet]').forEach(b => b.onclick = () => { sheetDismissed = null; sheetReadyKey = sheetKey(); renderSheet(); });
+  root.querySelectorAll('[data-bhkeep]').forEach(b => b.onclick = () => emit('blackhole', { skip: true }));
   root.querySelectorAll('[data-upgrade-pick]').forEach(b => b.onclick = openUpgradePicker);
   bindRoll(root);
 }
@@ -1117,13 +1120,14 @@ function renderSheet() {
       <button class="btn" data-take="0">Tidak</button></div>`;
   } else if (pend.type === 'blackhole') {
     const sideName = ['Sisi bawah', 'Sisi kiri', 'Sisi atas', 'Sisi kanan'];
-    html = `<h2>🕳️ Lubang Hitam</h2><p class="lead">Pilih petak mana saja. Lawan pertama yang berhenti di sana terkurung ${(W.normalAvatars && W.normalAvatars.alien && W.normalAvatars.alien.turns) || 2} giliran. Lubang hitammu yang lama pindah ke sini.</p>
+    html = `<h2>🕳️ Lubang Hitam</h2><p class="lead">Pilih petak mana saja. Setiap lawan yang berhenti di sana tersedot ke ${pend.from != null ? esc(W.board[pend.from].name) : 'kotamu'}, terkurung ${(W.normalAvatars && W.normalAvatars.alien && W.normalAvatars.alien.turns) || 2} giliran. Lubang hitammu yang lama pindah ke sini. Kamu juga bisa tutup lembar ini lalu ketuk petak di papan.</p>
       <div class="travel">${[0, 1, 2, 3].map(sd => `<h4>${sideName[sd]}</h4>` + W.board.slice(sd * SDN(), sd * SDN() + SDN()).map((t, k) => {
         const i = sd * SDN() + k, pr = S.props[i], o = pr && pr.owner ? P(pr.owner) : null;
         const here = S.players.filter(q => q.id !== me && !q.bankrupt && q.pos === i).map(q => q.name).join(', ');
         const sub = [pr ? (o ? (o.id === me ? 'milikmu' : 'milik ' + o.name) : 'kosong') : '', here ? '👤 ' + here : ''].filter(Boolean).join(' · ');
         return `<button data-bh="${i}"><i class="sw" style="background:${swatch(i)}"></i><span><b>${tileIcon(t)} ${esc(t.name)}</b><small>${esc(sub)}</small></span></button>`;
-      }).join('')).join('')}</div>`;
+      }).join('')).join('')}</div>
+      <div class="row" style="margin-top:12px">${S.blackholes && S.blackholes[me] != null ? `<button class="btn" data-bhkeep>⏭️ Lewati, lubang hitam tetap di ${esc(W.board[S.blackholes[me]].name)}</button>` : ''}${later}</div>`;
   } else if (pend.type === 'travel') {
     const sideName = ['Sisi bawah', 'Sisi kiri', 'Sisi atas', 'Sisi kanan'], row = pend.row, stay = row != null ? meP().pos : travelIdx();
     html = `<h2>${row != null ? '🧭 Pindah sebaris' : '🧳 Travelling!'}</h2><p class="lead">${row != null ? 'Pilih petak mana saja di baris tempatmu berada.' : 'Pilih kotak tujuan mana saja. Kalau melewati Mulai, kamu tetap gajian.'} Kamu juga bisa ketuk petak di papan.</p>
@@ -1309,7 +1313,7 @@ function renderEnd() {
     const sub = WIN ? WIN[1] : isNormal() ? 'Permainan diakhiri. Pemenang dihitung dari total kekayaan.' : 'Selamat, masih hidup. Tapi jujur saja: semua pemain sama-sama susah ekonominya. Tidak ada yang benar-benar menang.';
     openModal(`<h2>${head}</h2>
       <p class="lead">⏱ Lama permainan: <b>${fmtDuration(S.elapsed || 0)}</b><br>${sub}</p>
-      <ol class="rank">${S.ranking.map(r => { const q = P(r.id); return `<li>${face(q)}<b>${esc(q.name)}</b><span>${r.bankrupt ? `💀 gugur ke-${r.outAt}` : 'bertahan · ' + rp(r.worth)}</span></li>`; }).join('')}</ol>
+      <ol class="rank">${S.ranking.map(r => { const q = P(r.id); return `<li>${face(q)}<b>${esc(q.name)}</b><span>${r.bankrupt ? `💀 gugur ke-${r.outAt}` : r.cash != null ? `💰 ${rpS(r.cash)} + 🏠 ${rpS(r.props)}${r.loan ? ` − 🏦 ${rpS(r.loan)}` : ''} = <b>${rp(r.worth)}</b>` : 'bertahan · ' + rp(r.worth)}</span></li>`; }).join('')}</ol>
       ${W.serverLaptop ? '<button class="btn y" id="btnAgain">Main lagi</button>' : '<p class="empty">Menunggu ronde baru dimulai dari laptop server.</p>'}`, true);
     const a = $('#btnAgain'); if (a) a.onclick = () => emit('reset');
   });
@@ -1349,10 +1353,12 @@ function openTile(i) {
   const t = W.board[i], pr = S.props[i], p = meP();
   const band = t.type === 'city' || t.type === 'tourism' ? W.groupColors[t.group] : t.type === 'kesempatan' ? 'var(--green)' : t.type === 'musibah' ? 'var(--red)' : '#232329';
   let h = `<div class="mband" style="background:${band}"></div><h2>${tileIcon(t)} ${esc(t.name)}</h2>`;
-  const travelBtn = myTurn() && S.pending && S.pending.type === 'travel' && (S.pending.row == null || Math.floor(i / SDN()) === S.pending.row) ? `<div class="row" style="margin:10px 0"><button class="btn y" id="goHere">✈️ Travelling ke sini</button></div>` : '';
+  const travelBtn = myTurn() && S.pending && S.pending.type === 'travel' && (S.pending.row == null || Math.floor(i / SDN()) === S.pending.row) ? `<div class="row" style="margin:10px 0"><button class="btn y" id="goHere">✈️ Travelling ke sini</button></div>`
+    : myTurn() && S.pending && S.pending.type === 'blackhole' ? `<div class="row" style="margin:10px 0"><button class="btn y" id="goHere">🕳️ Pasang lubang hitam di sini</button></div>` : '';
+  const goHere = () => { closeModal(); emit(S.pending && S.pending.type === 'blackhole' ? 'blackhole' : 'travel', { tile: i }); };
   if (!pr) {
     openModal(h + `<p class="lead">${esc(TILE_DESC[t.type] ? TILE_DESC[t.type](t) : '')}</p>` + travelBtn);
-    const g = $('#goHere'); if (g) g.onclick = () => { closeModal(); emit('travel', { tile: i }); };
+    const g = $('#goHere'); if (g) g.onclick = goHere;
     return;
   }
   const o = pr.owner ? P(pr.owner) : null;
@@ -1405,7 +1411,7 @@ function openTile(i) {
   document.querySelectorAll('#modalBody [data-a]').forEach(b => b.onclick = () => { emit(b.dataset.a, { tile: i }); reopen(); });
   document.querySelectorAll('#modalBody [data-reopen]').forEach(b => b.onclick = () => { emit('reopen', { tile: i, all: b.dataset.reopen === 'all' }); reopen(); });
   bindUpgrade($('#modalBody'), i, reopen);
-  const g = $('#goHere'); if (g) g.onclick = () => { closeModal(); emit('travel', { tile: i }); };
+  const g = $('#goHere'); if (g) g.onclick = goHere;
 }
 
 /* ---------- Suara ---------- */

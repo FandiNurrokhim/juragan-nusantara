@@ -5,6 +5,7 @@ import { buildAvatar } from './avatar.js';
 import { levelModel, landmarkModel, tint } from './buildings.js';
 import { createFestivalDecor } from './festival.js';
 import { createTileFx } from './tilefx.js';
+import { createBlackholes } from './blackhole.js';
 
 // Ukuran papan tetap; tiap sisi punya (SD - 1) petak biasa selebar W di antara 2 petak sudut (C x C).
 // WNI: 40 petak (SD 10, W 1). Normal: 32 petak (SD 8, petak lebih lebar).
@@ -392,6 +393,18 @@ export function createBoardScene(container, opts) {
   const fest = createFestivalDecor(roundRect, DISPLAY);
   scene.add(fest.light);
   const tileFx = createTileFx(scene);
+  const holes = createBlackholes(scene);
+  let lastHoles = null, lastWarpSeq = null;
+  // Lubang hitam: pusaran di petak, busur energi dari Alien saat lubang baru dibuka.
+  function syncHoles() {
+    const list = (S && S.mode === 'normal' && S.blackholes) || {};
+    if (lastHoles) for (const [id, i] of Object.entries(list)) {
+      const tk = tokens.get(id);
+      if (lastHoles[id] !== i && tk && FRAMES[i]) holes.arc(tk.obj.position.clone(), tilePoint(i, 0, 0), colorOf(id));
+    }
+    lastHoles = { ...list };
+    holes.sync(list, i => tilePoint(i, 0, 0), id => colorOf(id));
+  }
   // Lencana "liontin aktif" yang melayang naik di atas bidak pemiliknya
   const badges = [];
   function addBadge(pid, text, kind) {
@@ -600,6 +613,7 @@ export function createBoardScene(container, opts) {
     const now = performance.now();
     const roller = rolled && S.players[S.turn];
     const alive = S.players.filter(p => !p.bankrupt);
+    if (lastWarpSeq === null) lastWarpSeq = S.warp ? S.warp.seq : 0; // jangan putar ulang saat halaman baru dibuka
     for (const [id, tk] of tokens) if (!alive.some(p => p.id === id)) { scene.remove(tk.obj); tokens.delete(id); }
     alive.forEach(p => {
       const tk = ensureToken(p, opts.photoUrl(p));
@@ -607,7 +621,8 @@ export function createBoardScene(container, opts) {
       const from = tk.server;
       tk.server = p.pos;
       const newlyJailed = p.inJail && !tk.jailed;
-      const dest = (from + S.dice[0] + S.dice[1]) % NT;
+      const dest = (from + S.dice[0] + S.dice[1]) % NT, w = S.warp;
+      if (w && w.seq !== lastWarpSeq && w.pid === p.id && w.to === p.pos) { lastWarpSeq = w.seq; tk.queue.push(...route(from, w.from, false), { to: w.to, jump: true, warp: w.from }); tk.jailed = !!p.inJail; return; }
       if (roller && roller.id === p.id && !tk.jailed && dest !== p.pos && dest !== from) tk.queue.push(...route(from, dest, false), ...route(dest, p.pos, newlyJailed));
       else tk.queue.push(...route(from, p.pos, newlyJailed));
       if (tk.queue.length > 24) { const last = tk.queue[tk.queue.length - 1]; tk.queue = [{ to: last.to, jump: true, jailed: last.jailed }]; }
@@ -717,6 +732,8 @@ export function createBoardScene(container, opts) {
     const dt = Math.min(0.05, (now - (frameLoop.last || now)) / 1000); frameLoop.last = now;
     fest.update(now, !!fest.group.parent);
     tileFx.update(now);
+    holes.update(now);
+    for (const [id, tk] of tokens) holes.aura(id, !!(S && S.mode === 'normal' && S.blackholes && S.blackholes[id] != null), tk.obj.position, colorOf && colorOf(id));
     updateBadges(now);
     if (hlGroup.children.length) hlMat.opacity = 0.6 + 0.2 * Math.sin(now / 220);
     groupSlots();
@@ -725,7 +742,8 @@ export function createBoardScene(container, opts) {
       if (!tk.hop && tk.queue.length && now >= holdUntil && now >= (tk.nextAt || 0)) {
         const q = tk.queue.shift();
         const speed = Math.min(4, 1 + tk.queue.length / 6); // antrean panjang = jalan lebih cepat
-        tk.hop = { to: q.to, jump: !!q.jump, jailed: q.jailed, t0: now, dur: (q.jump ? 750 : STEP_MS - 20) / speed, from: tk.pos.clone() };
+        tk.hop = { to: q.to, jump: !!q.jump, jailed: q.jailed, t0: now, dur: (q.warp != null ? 1300 : q.jump ? 750 : STEP_MS - 20) / speed, from: tk.pos.clone() };
+        if (q.warp != null) { holes.suck(tilePoint(q.warp, 0, 0)); shakeMs = 500; shakeUntil = now + 500; }
         tk.nextAt = now + (q.jump ? 800 : STEP_MS) / speed;
         groupSlots();
       }
@@ -819,6 +837,7 @@ export function createBoardScene(container, opts) {
       S = state; me = myId; colorOf = colorFn;
       if (!BOARD.length) return;
       rebuildProps();
+      syncHoles();
       const rolled = lastDiceSeq !== null && state.diceSeq !== lastDiceSeq;
       lastDiceSeq = state.diceSeq;
       syncTokens(rolled);
