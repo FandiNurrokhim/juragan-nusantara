@@ -49,6 +49,8 @@ input[type=text],input[type=number],select{font:inherit;border:2px solid var(--i
 .colors button:disabled{opacity:.2;cursor:not-allowed}
 .colors.sm button{width:30px;height:30px}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips-head{flex-basis:100%;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-top:6px}
+.chips-head:first-child{margin-top:0}
 .chips button{border:2px solid var(--ink);background:#fff;border-radius:99px;padding:.35rem .75rem;font-size:13px;font-weight:600}
 .chips button[aria-pressed=true]{background:var(--ink);color:#fff}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -57,6 +59,8 @@ input[type=text],input[type=number],select{font:inherit;border:2px solid var(--i
 .lobby-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:8px}
 .lobby-list li{display:flex;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:8px 10px;min-height:52px}
 .lobby-list li b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge.ready{background:#d9f5e5;color:#12703f;border-color:#12703f}
+.badge.wait{background:#fff3c4;color:#8a6500;border-color:#b8860b}
 .lobby-list li.empty-seat{border-style:dashed;color:var(--muted)}
 .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;border-radius:6px;padding:2px 6px;background:var(--ink);color:#fff;white-space:nowrap}
 .badge.off{background:#b9b6ab}
@@ -114,6 +118,14 @@ input[type=text],input[type=number],select{font:inherit;border:2px solid var(--i
 .turnchip{position:absolute;left:10px;top:10px;background:var(--ink);color:#fff;border-radius:99px;padding:6px 14px 6px 6px;font-weight:700;display:flex;gap:8px;align-items:center;max-width:calc(100% - 130px);font-size:14px}
 .turnchip .face{width:26px;height:26px;border-width:2px;box-shadow:none;font-size:11px}
 .turnchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt-tilang{display:grid;gap:8px;margin-top:10px}
+.opt-tilang .btn{display:grid;gap:2px;text-align:left;white-space:normal;height:auto}
+.opt-tilang small{font-weight:500;color:var(--muted)}
+.kaijubar{position:absolute;left:10px;top:92px;width:min(250px,calc(100% - 130px));background:rgba(22,20,24,.92);color:#fff;border-radius:12px;padding:8px 12px;z-index:3;pointer-events:none}
+.kaijubar .kb-head{display:flex;justify-content:space-between;gap:8px;font-size:13px;font-variant-numeric:tabular-nums}
+.kaijubar .kb-track{height:12px;background:#3a3a42;border-radius:7px;overflow:hidden;margin:4px 0}
+.kaijubar .kb-track i{display:block;height:100%;border-radius:7px;transition:width .5s}
+.kaijubar small{font-size:11px;opacity:.8}
 .dice-read{position:absolute;left:10px;bottom:10px;background:#fff;border:2px solid var(--ink);border-radius:10px;padding:4px 10px;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:0 2px 0 var(--ink)}
 .no3d{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;font-weight:600}
 
@@ -346,6 +358,7 @@ h3.sub{font-family:var(--display);font-size:16px;text-transform:uppercase;margin
         <div class="field"><span>Mode permainan</span><div id="modeBox"></div></div>
         <div class="field" id="pendantField" hidden><span>📿 Liontin avatarmu</span><div id="pendantBox"></div></div>
         <ul class="lobby-list" id="lobbyList"></ul>
+        <div class="row" style="margin-bottom:8px"><button class="btn g" id="btnReady" hidden>✋ Saya siap (Ready)</button></div>
         <div class="row" id="hostRow">
           <button class="btn b" id="btnAddBot">🤖 Tambah bot</button>
           <button class="btn y" id="btnStart">Mulai permainan</button>
@@ -378,6 +391,7 @@ h3.sub{font-family:var(--display);font-size:16px;text-transform:uppercase;margin
       <div class="aim" id="aim" hidden></div>
       <div class="clock" id="clock" title="Lama permainan">⏱ 0:00</div>
       <div class="festchip" id="festChip" hidden></div>
+      <div class="kaijubar" id="kaijuBar" hidden></div>
       <div class="crisis" id="crisis" hidden title="Kartu Musibah Spesial sudah masuk tumpukan">☠️ Krisis</div>
       <div class="stage-ui">
         <button class="btn" id="camFollow" aria-pressed="false" title="Kamera mengikuti bidak yang sedang jalan">🎯 Ikuti</button>

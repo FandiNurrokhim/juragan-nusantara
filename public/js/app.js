@@ -1,6 +1,6 @@
 // Tampilan pemain Juragan Nusantara: lobi, editor avatar, papan 3D, kartu, tagihan, dan suara.
 // Semua aturan ada di server; browser hanya mengirim aksi dan menampilkan state.
-import { createBoardScene, tileIcon } from './scene.js';
+import { createBoardScene, tileIcon, ringinRoots } from './scene.js';
 import { createPreview } from './avatar.js';
 import { sound } from './sound.js';
 
@@ -27,12 +27,12 @@ let pageBuild = null;
 socket.on('welcome', w => { if (pageBuild && w.build && w.build !== pageBuild) { location.reload(); return; } pageBuild = w.build || pageBuild; W = w; W.board = W.boards ? W.boards.wni : W.board; if (S) syncMode(); if (board3d) board3d.setBoard(W.board, W.groupColors); render(); });
 socket.on('pendants', list => { if (W) { W.pendants = list; render(); } });
 socket.on('joined', d => { me = d.pid; store.set(PID_KEY, me); render(); });
-socket.on('state', st => { const prev = S; S = st; if (W) syncMode(); onState(prev); render(); });
+socket.on('state', st => { const prev = S; S = st; if (W) syncMode(); onState(prev); render(); renderKaijuBar(); });
 // Mode WNI / Normal punya papan, stat, dan musik sendiri.
 function syncMode() {
   const b = (W.boards && W.boards[S.mode || 'wni']) || W.board;
   if (b !== W.board) { W.board = b; if (board3d) { board3d.setBoard(b, W.groupColors); board3d.redraw(); } }
-  sound.setTrack(S.mode === 'normal' ? 'bgm_normal' : 'bgm');
+  sound.setTrack(S.phase === 'lobby' ? 'lobbyscene' : S.mode === 'normal' ? 'bgm_normal' : 'bgm');
 }
 const isNormal = () => S && S.mode === 'normal';
 // Stat avatar sesuai mode (mode Normal: modal sama untuk semua + skill unik).
@@ -47,7 +47,7 @@ function winProgressC(key) {
   const B = W.board, sd = B.length / 4;
   const owns = i => { const pr = S.props[i]; const o = pr && P(pr.lease ? pr.lease.from : pr.owner); return !!o && !o.bankrupt && sideKeyC(o) === key; };
   const buyable = i => !!S.props[i];
-  const groups = [...new Set(B.filter(t => t.type === 'city').map(t => t.group))].map(g => B.map((t, i) => (t.group === g ? i : -1)).filter(i => i >= 0));
+  const groups = [...new Set(B.filter(t => t.type === 'city').map(t => t.group))].map(g => B.map((t, i) => (t.group === g ? i : -1)).filter(i => i >= 0)).filter(gr => gr.length > 1); // Jombang tidak dihitung
   const lines = [0, 1, 2, 3].map(sd0 => B.map((t, i) => i).filter(i => Math.floor(i / sd) === sd0 && buyable(i)));
   return {
     tourism: B.filter((t, i) => t.type === 'tourism' && owns(i)).length,
@@ -94,7 +94,7 @@ function face(p, cls = 'face') {
 /* ---------- Event dari state (suara, animasi, kartu) ---------- */
 function afterMoves(fn) { if (board3d) board3d.whenIdle(fn); else fn(); }
 // Toast kecil saat skill avatar atau liontinku aktif, supaya terasa (dibaca dari catatan permainan).
-const SKILL_LOG = { lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /dilindungi Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
+const SKILL_LOG = { tilang: /menilang|Barikade Evakuasi/, lubang: /siap membuka lubang hitam|tersedot lubang hitam milik/, terkam: /menerkam/, santet: /menyantet/, pelan: /Pelan tapi Pasti/, preman: /memalak/, lapak: /jajan di lapak [^)]/, segel: /menyegel/, penagih: /ditagih utang/, usil: /usil mencuri/, tameng: /Tameng Baja/, antar: /Antar Jemput:/, harta: /Harta Naga/, titah: /dilindungi Titah Raja/, proyek: /Proyek Titipan/, seret: /menyeret/, kokok: /Kokok Pagi/, mulus: /mendarat mulus/, jalan: /Terbang Bebas!/, setoran: /setoran angkot/,
   gentayangan: /digentayangi/, colong: /dicolong tuyul/, teror: /meneror/, panen: /Panen Raya/ };
 function announceMyEffects(prev) {
   const p = meP(); if (!p) return;
@@ -129,9 +129,12 @@ function onState(prev) {
     const badges = (S.fx.notices || []).filter(n => n.type === 'pendant' || n.type === 'skill');
     if (badges.length && board3d) afterMoves(() => badges.forEach(n => board3d.badge(n.pid, (n.type === 'skill' ? '✨ ' : '') + n.text + ' aktif!', n.type)));
     const mine = (S.fx.notices || []).filter(n => n.to === me);
-    const list = S.fx.list.filter(f => f !== 'dice1' && f !== 'ultra' && !(mine.length && f === 'cash')).slice(0, 3);
+    // suara khusus didahulukan, dan suara uang biasa tidak ikut menimpanya
+    const all = S.fx.list.filter(f => f !== 'dice1' && f !== 'ultra' && !(mine.length && f === 'cash')), custom = all.filter(sound.isCustom);
+    const list = (custom.length ? [...custom, ...all.filter(f => !sound.isCustom(f) && !['pay', 'cash', 'seize'].includes(f))] : all).slice(0, 3);
     afterMoves(() => {
-      list.forEach((f, k) => setTimeout(() => sound.play(f), k * 180));
+      let at = 0;
+      list.forEach(f => { setTimeout(() => sound.play(f), at); at += sound.isCustom(f) ? Math.min(2000, sound.duration(f) * 1000) : 180; });
       mine.forEach((n, k) => setTimeout(() => {
         sound.play({ payday: 'gajian', rent: 'sewa', dapur: 'cash' }[n.type] || 'cash');
         toast(n.type === 'payday' ? `💰 Gajian! +${rp(n.amount)}` : n.type === 'dapur' ? `🍱 Hasil Dapur Gizi +${rp(n.amount)}` : `🏠 ${n.from} membayar ${n.reason.toLowerCase()} ${rp(n.amount)} kepadamu`);
@@ -304,7 +307,10 @@ function mountEditor(root, value, onChange) {
     for (const k of ['model', 'baju', 'rambut', 'topi', 'aksesoris']) {
       const box = root.querySelector(`[data-k=${k}]`); box.textContent = '';
       if (!v.look[k]) v.look[k] = L[k][0].id;
-      L[k].forEach(o => {
+      // mode Normal: model bidak dikelompokkan per kelas
+      const items = k === 'model' && isNormal() ? Object.entries(W.normal.classes).flatMap(([c, g]) => [{ head: `${g.icon} ${g.name}` }, ...L.model.filter(o => (W.normalAvatars[o.id] || {}).class === c)]) : L[k];
+      items.forEach(o => {
+        if (o.head) { const h = document.createElement('div'); h.className = 'chips-head'; h.textContent = o.head; box.appendChild(h); return; }
         const b = document.createElement('button'); b.textContent = o.name;
         b.setAttribute('aria-pressed', String(v.look[k] === o.id));
         b.onclick = () => { v.look[k] = o.id; draw(); refresh(); onChange({ look: { ...v.look } }); };
@@ -322,7 +328,8 @@ function mountEditor(root, value, onChange) {
     root.querySelector('[data-rm]').hidden = !v.photo;
     const st = statsOfP({ ...(meP() || {}), look: v.look });
     const pc = x => Math.round((x || 0) * 100) + '%';
-    const skill = isNormal() && st.skill ? `<span class="skill">${st.icon} <b>${esc(st.name)}</b>: ${esc(st.desc)}</span>` : '';
+    const cl = isNormal() && st.class ? W.normal.classes[st.class] : null;
+    const skill = (cl ? `<span class="skill">${cl.icon} <b>Kelas ${esc(cl.name)}</b>: spesialis ${esc(cl.goal)}. ${esc(cl.passive)} Unggul melawan kelas ${esc(cl.beats)}.</span>` : '') + (isNormal() && st.skill ? `<span class="skill">${st.icon} <b>${esc(st.name)}</b>: ${esc(st.desc)}</span>` : '');
     root.querySelector('[data-stats]').innerHTML = skill + `<span>🏷️ Diskon tanah <b>${pc(st.land)}</b></span><span>🔨 Diskon bangun <b>${pc(st.build)}</b></span><span>🎯 Kontrol dadu <b>${pc(st.dice)}</b></span><span>💰 Modal <b>${rpS(st.start || W.startMoney)}</b></span>`;
     const human = (L.model.find(m => m.id === v.look.model) || L.model[0]).human;
     root.querySelectorAll('[data-human]').forEach(f => { f.hidden = !human; });
@@ -397,6 +404,8 @@ function addrHtml() {
   return 'Teman di Wi-Fi yang sama bisa membuka:' + urls.map(u => `<code>${esc(u)}</code>`).join('');
 }
 // Daftar pemain lobi. manage = boleh mengeluarkan pemain (host atau laptop server).
+// Host dan bot tidak perlu menekan Ready.
+const needsReady = q => !q.bot && q.id !== S.hostId;
 function lobbyListHtml(manage) {
   const max = W.maxPlayers;
   return S.players.map(q => `<li>
@@ -405,6 +414,7 @@ function lobbyListHtml(manage) {
       ${teamBadge(q)}
       ${q.bot ? '<span class="badge bot">Bot</span>' : ''}
       ${q.id === S.hostId ? '<span class="badge">Host</span>' : ''}
+      ${needsReady(q) ? (q.ready ? '<span class="badge ready">✅ Ready</span>' : '<span class="badge wait">⏳ Belum ready</span>') : ''}
       ${!q.connected ? '<span class="badge off">Offline</span>' : ''}
       ${manage && q.id !== me ? `<button class="btn sm" data-kick="${q.id}" title="Keluarkan ${esc(q.name)}">${q.bot ? 'Hapus' : 'Keluarkan'}</button>` : ''}
     </li>`).join('') + (max > S.players.length ? `<li class="empty-seat">${max - S.players.length} kursi kosong (maksimal ${max} pemain)</li>` : '');
@@ -475,10 +485,13 @@ function renderPendantPicker(p) {
 }
 function renderLobby(p) {
   const host = p.id === S.hostId, manage = host || W.serverLaptop, n = S.players.length, max = W.maxPlayers;
+  const humans = S.players.filter(needsReady), waiting = humans.filter(q => !q.ready);
   $('#lobbyLead').textContent = host
-    ? (n < 2 ? 'Kamu tuan rumah. Ajak teman atau tambahkan bot, minimal 2 pemain.' : `Kamu tuan rumah. ${n} pemain siap, mulai kapan saja.`)
+    ? (n < 2 ? 'Kamu tuan rumah. Ajak teman atau tambahkan bot, minimal 2 pemain.' : waiting.length ? `Kamu tuan rumah. Belum ready: ${waiting.map(q => q.name).join(', ')}.` : 'Kamu tuan rumah. Semua pemain sudah ready, mulai kapan saja.')
     : manage ? 'Kamu di laptop server: bisa menambah bot, mengeluarkan pemain, dan memulai permainan.'
-    : 'Menunggu tuan rumah memulai permainan…';
+    : p.ready ? 'Kamu sudah ready. Menunggu tuan rumah memulai permainan…' : 'Tekan Ready kalau kamu sudah siap bermain.';
+  $('#btnReady').hidden = host;
+  $('#btnReady').textContent = p.ready ? '✅ Sudah ready (tekan untuk batal)' : '✋ Saya siap (Ready)';
   $('#lobbyAddr').innerHTML = addrHtml();
   setHtml($('#lobbyList'), lobbyListHtml(manage));
   $('#lobbyList').querySelectorAll('[data-kick]').forEach(b => b.onclick = () => emit('kick', { id: b.dataset.kick }));
@@ -489,7 +502,7 @@ function renderLobby(p) {
   renderPendantPicker(p);
   $('#btnAddBot').disabled = n >= max;
   $('#btnStart').disabled = n < 2;
-  $('#btnStart').textContent = n < 2 ? 'Mulai (min. 2 pemain)' : `Mulai permainan (${n} pemain)`;
+  $('#btnStart').textContent = n < 2 ? 'Mulai (min. 2 pemain)' : waiting.length ? `Mulai (${humans.length - waiting.length}/${humans.length} ready)` : `Mulai permainan (${n} pemain)`;
   if (!lobbyEditor) lobbyEditor = liveEditor($('#lobbyEditor'), p);
   else lobbyEditor.redraw();
 }
@@ -504,6 +517,7 @@ function renderCards() {
     if (lands) meta.push('⛏️🌴🍱 ' + lands);
     if (cards) meta.push('🃏 ' + cards);
     if (q.pejabat > 0) meta.push(`🎖️ pejabat ${q.pejabat}`);
+    if (q.immune) meta.push('🚨 perisai');
     if (isNormal() && !q.bankrupt) {
       const g = winProgressC(sideKeyC(q)), hot = (a, b) => (a >= b - 1 ? '⚠️' : '');
       meta.push(`🏆 ${hot(g.line, g.lineOf)}📏${g.line}/${g.lineOf} ${hot(g.triple, 3)}🎨${g.triple}/3 ${hot(g.tourism, W.normal.tourismWin)}🏝️${g.tourism}/${W.normal.tourismWin}`);
@@ -527,6 +541,14 @@ function renderCards() {
 let elapsedAt = { ms: 0, at: 0, running: false }, idleAt = { left: null, at: 0 };
 const fmtDuration = ms => { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, d = String(s % 60).padStart(2, '0');
   return h ? `${h}:${String(m).padStart(2, '0')}:${d}` : `${m}:${d}`; };
+// 👹 Bar HP monster di layar
+function renderKaijuBar() {
+  const el = $('#kaijuBar'); if (!el) return;
+  const kj = S && S.phase === 'playing' ? S.kaiju : null;
+  el.hidden = !kj; if (!kj) return;
+  const p = Math.max(0, kj.hp / kj.maxHp);
+  el.innerHTML = `<div class="kb-head"><b>👹 Monster</b><span>${kj.hp} / ${kj.maxHp} HP</span></div><div class="kb-track"><i style="width:${p * 100}%;background:${p > 0.5 ? '#35c46a' : p > 0.25 ? '#f2b21f' : '#e8392b'}"></i></div><small>Pergi dalam ${kj.rounds} putaran</small>`;
+}
 function tickClock() {
   const el = $('#clock'); if (!el) return;
   // Hitung mundur waktu tunggu giliran (tampil di label giliran)
@@ -540,7 +562,7 @@ function tickClock() {
   const ms = elapsedAt.ms + (elapsedAt.running ? performance.now() - elapsedAt.at : 0);
   // Sisa waktu sampai batas permainan; merah di 5 menit terakhir
   const limit = (W && W.gameMinutes || 60) * 60000, left = Math.max(0, limit - ms);
-  el.textContent = '⏱ ' + fmtDuration(left); // hitung mundur sisa waktu permainan
+  el.textContent = '⏱ ' + fmtDuration(left) + (S && S.late ? ` · 🔥 sewa ×${String(S.late.mult).replace('.', ',')}` : ''); // hitung mundur sisa waktu permainan
   el.classList.toggle('late', elapsedAt.running && left <= 5 * 60000);
   el.title = `Permainan sudah berlangsung ${Math.floor(ms / 60000)} menit. Selesai otomatis setelah ${limit / 60000} menit (sisa ${Math.ceil(left / 60000)} menit).`;
 }
@@ -601,6 +623,12 @@ function renderDock() {
         : ['🕴️ Ambil alih?', `${esc(W.board[pend.tile].name)} seharga ${rpS(pend.price)}`];
       html += `<div class="msg">${info[0]}<small>${info[1]}</small></div>`;
       acts.push(`<button class="btn y" data-sheet>Lihat pilihan</button>`);
+    } else if (pend && pend.type === 'tilang') {
+      html += `<div class="msg">🚓 Kamu ditilang!<small>Pilih cara menyelesaikannya.</small></div>`;
+      acts.push(`<button class="btn y" data-sheet>Lihat pilihan</button>`);
+    } else if (pend && pend.type === 'kaiju') {
+      html += `<div class="msg">⚔️ Serang Monster<small>Sisa HP ${S.kaiju ? S.kaiju.hp : 0}. Mau menyerang?</small></div>`;
+      acts.push(`<button class="btn y" data-sheet>Lihat pilihan</button>`);
     } else if (pend && pend.type === 'blackhole') {
       const old = S.blackholes && S.blackholes[me];
       html += `<div class="msg">🕳️ Lubang Hitam<small>${old != null ? `Pindahkan lubang hitammu, atau biarkan tetap di ${esc(W.board[old].name)}.` : 'Pilih petak untuk menjebak lawan.'}</small></div>`;
@@ -620,7 +648,8 @@ function renderDock() {
         acts.push(`<button class="btn g" data-payroll ${p.money < W.jailFine ? 'disabled' : ''}>💸 Bayar ${rpS(W.jailFine)} & lempar dadu</button>`);
         if (p.hand.orangdalam) acts.push(`<button class="btn b" data-power="orangdalam">🤝 Orang Dalam</button>`);
       } else {
-        html += `<div class="msg">Giliranmu!<small>${S.doubles ? 'Dadu kembar, lempar sekali lagi.' : 'Lempar dadu untuk jalan. Upgrade tanah atau pakai kartu sakti bisa sebelum atau sesudah melempar.'}</small></div>`;
+        if (S.kokokFree) acts.push(`<button class="btn" data-act="endTurn">🐓 Cukup, selesai giliran</button>`);
+        html += `<div class="msg">${S.kokokFree ? '🐓 Kokok Pagi!' : 'Giliranmu!'}<small>${S.kokokFree ? 'Boleh lempar sekali lagi tanpa bidikan, atau berhenti di sini.' : S.doubles ? 'Dadu kembar, lempar sekali lagi.' : 'Lempar dadu untuk jalan. Upgrade tanah atau pakai kartu sakti bisa sebelum atau sesudah melempar.'}</small></div>`;
         if (pmodC(p, 'parity') > 0) {
           const n = p.parity || 0;
           if (n <= 0) parityPick = null;
@@ -996,7 +1025,7 @@ function sheetKey() {
   if (!p || p.bankrupt || S.phase !== 'playing') return null;
   const pend = S.pending;
   if (myTurn() && pend && pend.type === 'buy' && isNormal() && W.board[pend.tile].type === 'city') return 'buy:' + pend.tile + ':' + S.diceSeq;
-  if (myTurn() && pend && ['bill', 'upgradeOffer', 'travel', 'blackhole', 'festival', 'slot', 'takeover', 'startBuild', 'ojolStep'].includes(pend.type)) return pend.type + ':' + (pend.tile ?? '') + ':' + S.diceSeq + ':' + (pend.amount || '');
+  if (myTurn() && pend && ['bill', 'upgradeOffer', 'travel', 'blackhole', 'kaiju', 'tilang', 'festival', 'slot', 'takeover', 'startBuild', 'ojolStep'].includes(pend.type)) return pend.type + ':' + (pend.tile ?? '') + ':' + S.diceSeq + ':' + (pend.amount || '');
   if (p.money < 0) return 'debt';
   return null;
 }
@@ -1101,6 +1130,19 @@ function renderSheet() {
       <div class="pick-list">${mine.map(i => { const next = f && f.tile === i ? Math.min(W.normal.festivalMax, f.mult * 2) : 2;
         return `<button data-fest="${i}"><i class="sw" style="background:${swatch(i)}"></i><b>${esc(W.board[i].name)}${useTag(i)}</b><small>sewa ${rpS(rentNow(i))} → ×${next}</small></button>`; }).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="btn" data-fest-skip>Lewati</button></div>`;
+  } else if (pend.type === 'tilang') {
+    const N = W.normal, half = Math.round(pend.amount * N.tilangHalf / 1000) * 1000, bribe = Math.max(N.sogokMin, Math.round(Math.max(0, p.money) * N.sogokPct / 100000) * 100000), cop = P(pend.to);
+    html = `<h2>🚓 Kamu Ditilang!</h2><p class="lead">${esc(cop ? cop.name : 'Polisi')} menghentikanmu di ${esc(W.board[pend.tile].name)}. Uangmu ${rp(p.money)}.</p>
+      <div class="opt-tilang">
+        <button class="btn" data-tilang="full"><b>💸 Bayar sewa penuh: ${rpS(pend.amount)}</b><small>Setelah itu boleh mengambil alih kalau uangnya cukup.</small></button>
+        ${pend.landmark ? '' : `<button class="btn" data-tilang="half"><b>🧾 Bayar 50% sewa: ${rpS(half)}</b><small>Lebih murah, tapi tidak bisa mengambil alih.</small></button>`}
+        <button class="btn" data-tilang="sogok" ${p.money < bribe ? 'disabled' : ''}><b>🤫 Sogok polisi: ${rpS(bribe)}</b><small>${p.money < bribe ? `Harus tunai, minimal ${rpS(N.sogokMin)}.` : `Sepertiga uang tunaimu, minimal ${rpS(N.sogokMin)}. Tidak bisa mengambil alih.`}</small></button>
+      </div>`;
+  } else if (pend.type === 'kaiju') {
+    const N = W.normal, kj = S.kaiju || { hp: 0, maxHp: 1 };
+    html = `<h2>⚔️ Serang Monster</h2><p class="lead">Sisa HP monster <b>${kj.hp} / ${kj.maxHp}</b>. Peluang kena ${Math.round(N.kaijuHitChance * 100)}%, kerusakan ${N.kaijuDamage[0]}–${N.kaijuDamage[1]} HP.</p>
+      <table class="rent"><tr><td>🎯 Kena</td><td>${rp(N.kaijuHitReward)}</td></tr><tr><td>🏆 Mengalahkan monster</td><td>${rp(N.kaijuKillReward)} + 1 kartu sakti</td></tr><tr><td>💥 Meleset</td><td>bayar ${rp(N.kaijuMissCost)}</td></tr></table>
+      <div class="row" style="margin-top:12px"><button class="btn r" data-kaiju="1">⚔️ Serang!</button><button class="btn" data-kaiju="0">Tidak</button></div>`;
   } else if (pend.type === 'slot') {
     const N = W.normal;
     html = `<h2>🎰 Mesin Game</h2><p class="lead">Pilih taruhanmu, lalu hentikan 3 gulungan. ${N.slotWild ? `${N.slotWild} bintang dihitung sebagai simbol apa saja. ` : ''}Hadiah = taruhan × pengali: 2 sama ×${N.slotPair}, 3 sama ×${N.slotTriple}, 7️⃣7️⃣7️⃣ ×${N.slotJackpot}${N.slotRefund ? `, zonk tetap kembali ${Math.round(N.slotRefund * 100)}%` : ''}. Peluang menang sekitar 65%.</p>
@@ -1156,6 +1198,8 @@ function renderSheet() {
   el.querySelectorAll('[data-install]').forEach(b => b.onclick = () => emit('installRent', { n: +b.dataset.install }));
   el.querySelectorAll('[data-mortgage]').forEach(b => b.onclick = () => emit('mortgage', { tile: +b.dataset.mortgage }));
   el.querySelectorAll('[data-go]').forEach(b => b.onclick = () => emit('travel', { tile: +b.dataset.go }));
+  el.querySelectorAll('[data-tilang]').forEach(b => b.onclick = () => emit('tilangChoice', { choice: b.dataset.tilang }));
+  el.querySelectorAll('[data-kaiju]').forEach(b => b.onclick = () => emit('kaijuAttack', { go: b.dataset.kaiju === '1' }));
   el.querySelectorAll('[data-bh]').forEach(b => b.onclick = () => emit('blackhole', { tile: +b.dataset.bh }));
   const l = el.querySelector('[data-later]'); if (l) l.onclick = () => { sheetDismissed = key; el.hidden = true; };
 }
@@ -1257,10 +1301,12 @@ function rentNow(i) {
     : t.rent[pr.houses] * (group.every(j => S.props[j].owner === pr.owner) ? 2 : 1);
   if (S.festival && S.festival.tile === i) r *= S.festival.mult;
   if (pr.slump) r *= W.normal.slumpMult;
+  r *= ringinRoots(W.board, S, i, W.normal.ringinRoots);
+  if (S.late) r *= S.late.mult; // 🔥 inflasi Fase Genting
   // sama dengan server: liontin Pemandu Wisata (sewa wisata) dan skill pemilik yang menaikkan sewa (Pejabat)
   const o = P(pr.owner);
   if (o && isNormal()) {
-    if (t.type === 'tourism') r *= 1 + pmodC(o, 'tourismRent');
+    if (t.type === 'tourism') r *= 1 + pmodC(o, 'tourismRent') + (statFor(modelOfP(o)).class === 'tourism' ? W.normal.tourismClassRent : 0);
     r *= statFor(modelOfP(o)).rentMult || 1;
   }
   return Math.round(r / 1000) * 1000;
@@ -1339,6 +1385,7 @@ const TILE_DESC = {
   jail: () => `Kalau hanya mampir, aman. Tahanan bisa keluar dengan dadu kembar, denda ${rp(W.jailFine)}, atau kartu Orang Dalam. Selama dipenjara, uang yang mestinya diterima masuk kas negara.`,
   travel: () => 'Berhenti di sini: bebas pilih kotak tujuan mana saja di papan.',
   festival: () => `Adakan festival di salah satu propertimu: sewa ×2, lalu ×4, ×8, … maksimal ×${W.normal.festivalMax} kalau festival diadakan lagi di properti yang sama.`,
+  attack: () => `Saat monster raksasa ada di papan, berhenti di sini untuk menyerangnya: kena ${rp(W.normal.kaijuHitReward)}, mengalahkan ${rp(W.normal.kaijuKillReward)} + kartu sakti, meleset bayar ${rp(W.normal.kaijuMissCost)}. Kalau belum ada monster, dapat uang patroli ${rp(W.normal.kaijuPatrol)}.`,
   slot: () => `Mesin Game: pilih taruhan ${W.normal.slotBets.map(rpS).join(' / ')}, cocokkan 3 simbol untuk menang hingga ×${W.normal.slotJackpot} taruhan.`,
   gotojail: () => 'Langsung masuk penjara tanpa melewati Mulai.',
   kesempatan: () => 'Ambil kartu Kesempatan (hijau): rezeki kecil, kartu sakti, Putar Balik Fakta, atau pujian untuk pejabat.',
@@ -1365,6 +1412,7 @@ function openTile(i) {
   const safe = pr.grace > 0 ? ` · 🛡️ aman dari kejadian acak ${pr.grace} gajian lagi` : '';
   const useTxt = pr.use === 'tambang' ? `⛏️ Tambang${pr.closed > 0 ? ` (ditutup akamsi, ${pr.closed} giliran lagi)` : ''}${safe}` : pr.use === 'sawit' ? `🌴 Kebun sawit${safe}` : pr.use === 'dapur' ? `🍱 Dapur Gizi Gratis${safe}` : '';
   const extra = [];
+  if (t.special === 'ringin') extra.push(`🌳 <b>Kota istimewa Jombang</b>: sewanya selalu ×2. Siapa pun yang berhenti di sini ${Math.round(W.normal.wangsitChance * 100)}% dapat wangsit (kartu sakti acak). Kalau sudah jadi Landmark <b>Ringin Contong</b>: akar beringinnya membuat kota lain milik pemiliknya di baris ini sewanya ×${String(W.normal.ringinRoots).replace('.', ',')}, dan pemiliknya berteduh, yaitu bayar sewa di baris ini cuma ${Math.round(W.normal.ringinShade * 100)}%. Tidak dihitung untuk Triple Monopoly.`);
   if (S.festival && S.festival.tile === i) extra.push(`🎪 Festival: sewa ×${S.festival.mult}`);
   if (pr.slump) extra.push(`💣 Sewa turun 50% (${pr.slump.turns} giliran lagi)`);
   if (pr.blackout) extra.push(`⚡ Listrik padam ${pr.blackout.turns} giliran lagi: siapa pun yang berhenti di sini bebas sewa. Pemiliknya bisa menyalakan lagi dengan berhenti di sini.`);
@@ -1432,6 +1480,7 @@ $('#btnJoin').onclick = () => {
 $('#nameIn').onkeydown = e => { if (e.key === 'Enter') $('#btnJoin').click(); };
 $('#btnWatch').onclick = $('#btnWatch2').onclick = () => { watching = true; render(); };
 $('#btnStart').onclick = () => emit('start');
+$('#btnReady').onclick = () => { const p = meP(); emit('ready', { on: !(p && p.ready) }); };
 $('#btnAddBot').onclick = () => emit('addBot');
 $('#btnLeave').onclick = () => emit('leave');
 $('#btnAddr').onclick = () => openModal(`<h2>Ajak teman</h2><p class="lead">${addrHtml()}</p><p class="empty">Pastikan semua perangkat tersambung ke Wi-Fi yang sama.</p>`);

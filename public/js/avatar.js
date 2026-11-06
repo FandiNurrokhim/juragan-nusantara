@@ -625,6 +625,27 @@ const CREATURES = {
     }
     return hatAnchor(head, 0, 0.0001, 0, 0.0001); // antena sudah jadi hiasan kepala
   },
+  polisi(body, color, photo) {
+    const uni = std('#6d5a43', { roughness: 0.7 }), dark = std('#23232a'), vest = std('#c6e82e', { roughness: 0.55 }), stripe = std('#eef1f2', { metalness: 0.3 }), cap = std('#2f2b28'), band = std(color), red = std('#d9261c');
+    for (const sd of [-1, 1]) { body.add(mesh(G('pLeg', () => new THREE.CylinderGeometry(0.09, 0.1, 0.42, 12)), uni, sd * 0.11, 0.27, 0)); body.add(mesh(G('pBoot', () => new THREE.BoxGeometry(0.14, 0.1, 0.2)), dark, sd * 0.11, 0.05, 0.03)); }
+    body.add(mesh(G('pTorso', () => new THREE.CylinderGeometry(0.24, 0.21, 0.48, 18)), uni, 0, 0.74, 0));
+    body.add(mesh(G('pVest', () => new THREE.CylinderGeometry(0.255, 0.225, 0.36, 18)), vest, 0, 0.76, 0));
+    for (const y of [0.68, 0.84]) body.add(mesh(G('pStripe', () => new THREE.CylinderGeometry(0.262, 0.25, 0.035, 18)), stripe, 0, y, 0));
+    body.add(mesh(G('pBelt', () => new THREE.CylinderGeometry(0.225, 0.225, 0.05, 18)), dark, 0, 0.53, 0));
+    const armL = mesh(G('pArm', () => new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10)), uni, -0.29, 0.72, 0); armL.rotation.z = -0.25; body.add(armL);
+    const armR = mesh(G('pArm', () => new THREE.CylinderGeometry(0.06, 0.06, 0.42, 10)), uni, 0.34, 0.92, 0.04); armR.rotation.z = 0.95; body.add(armR);
+    // tongkat lalu lintas menyala dan peluit
+    const wand = mesh(G('pWand', () => new THREE.CylinderGeometry(0.028, 0.028, 0.4, 10)), std('#ff4a2e', { emissive: '#ff2a12', emissiveIntensity: 0.9 }), 0.56, 1.2, 0.04); wand.rotation.z = -0.2; body.add(wand);
+    body.add(mesh(G('pWhistle', () => new THREE.SphereGeometry(0.03, 10, 8)), stripe, 0.09, 0.9, 0.25));
+    const head = new THREE.Group(); head.position.set(0, 1.22, 0); body.add(head);
+    photoHead(head, photo, '#c98e62', '#c98e62');
+    head.add(mesh(G('pCapTop', () => new THREE.CylinderGeometry(0.34, 0.27, 0.13, 22)), cap, 0, 0.24, -0.02));
+    head.add(mesh(G('pCapBand', () => new THREE.CylinderGeometry(0.275, 0.275, 0.055, 22)), band, 0, 0.16, 0));
+    const visor = mesh(G('pVisor', () => new THREE.BoxGeometry(0.34, 0.025, 0.17)), dark, 0, 0.13, 0.26); visor.rotation.x = 0.18; head.add(visor);
+    head.add(mesh(G('pBadge', () => new THREE.SphereGeometry(0.035, 10, 8)), std('#e2b33c', { metalness: 0.7, roughness: 0.3 }), 0, 0.24, 0.27));
+    body.add(mesh(G('pSiren', () => new THREE.SphereGeometry(0.035, 10, 8)), red, -0.14, 0.94, 0.2));
+    return hatAnchor(head, 0, 0.0001, 0, 0.0001); // topi polisi sudah jadi topi
+  },
   // Pesawat kecil berwarna pemain; foto tampil di kaca kokpit.
   pesawat(body, color, photo) {
     const paint = std(color, { roughness: 0.35, metalness: 0.25 }), white = std('#f7f5ef', { roughness: 0.4 });

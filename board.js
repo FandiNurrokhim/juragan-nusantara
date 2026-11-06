@@ -97,7 +97,7 @@ const LOOKS = {
     { id: 'robot', name: '🤖 Robot' }, { id: 'monyet', name: '🐒 Monyet' }, { id: 'superhero', name: '🦸 Superhero' },
     { id: 'ojol', name: '🛵 Ojol' }, { id: 'naga', name: '🐉 Naga' }, { id: 'putri', name: '👸 Putri Keraton' },
     { id: 'harimau', name: '🐯 Harimau' }, { id: 'dukun', name: '🧙 Dukun' }, { id: 'becak', name: '🛺 Becak' },
-    { id: 'jawara', name: '🗡️ Jawara' }, { id: 'pedagang', name: '🛒 Pedagang Kaki Lima' }, { id: 'satpol', name: '🚔 Satpol PP' }, { id: 'alien', name: '🛸 Alien' }
+    { id: 'jawara', name: '🗡️ Jawara' }, { id: 'pedagang', name: '🛒 Pedagang Kaki Lima' }, { id: 'satpol', name: '🚔 Satpol PP' }, { id: 'alien', name: '🛸 Alien' }, { id: 'polisi', name: '🚓 Polisi' }
   ],
   kulit: ['#f6d5b8', '#e9b98f', '#c98e62', '#a06a43', '#6e4529'],
   rambut: [
@@ -145,7 +145,8 @@ const AVATAR_STATS = {
   jawara:      { land: 0.10, build: 0.05, dice: 0.15, start: 900 * K },
   pedagang:    { land: 0.05, build: 0.10, dice: 0.15, start: 900 * K },
   satpol:      { land: 0.05, build: 0.05, dice: 0.20, start: 900 * K },
-  alien:       { land: 0.05, build: 0.05, dice: 0.20, start: 900 * K }
+  alien:       { land: 0.05, build: 0.05, dice: 0.20, start: 900 * K },
+  polisi:      { land: 0.05, build: 0.05, dice: 0.20, start: 900 * K }
 };
 
 // Pinjaman bank & cicilan sewa.
@@ -302,8 +303,8 @@ const NORMAL = {
   startMoney: 1500 * K,         // semua avatar mulai dengan modal yang sama: Rp 15 jt
   salary: 500 * K,              // gaji Rp 5 jt tiap melewati Mulai (cukup untuk saling serobot properti)
   takeoverMult: 2,              // ambil alih properti lawan (belum Landmark) = 2x nilai tanah + bangunan
-  negoMult: 1.7,                // skill Raja Akuisisi: ambil alih cukup 1,7x
-  negoLandmarkMult: 2.5,        // ... tapi mengambil alih Landmark 2,5x
+  negoMult: 1.5,                // skill Raja Akuisisi: ambil alih cukup 1,5x
+  negoLandmarkMult: 2.2,        // ... tapi mengambil alih Landmark 2,2x
   slumpMult: 0.5,               // kartu Sabotase: sewa jadi 50% ...
   slumpTurns: 3,                // ... selama 3 giliran pemiliknya
   leaseTurns: 3,                // kartu Kontrak Sementara: properti lawan jadi milikmu 3 giliranmu
@@ -329,18 +330,21 @@ const NORMAL = {
 // 4 tempat wisata (satu per sisi) tidak bisa dibangun & tidak bisa diambil alih; kuasai keempatnya = langsung menang.
 const tourism = (name, price, icon) => ({ type: 'tourism', name, group: 'wisata', price: price * K, icon });
 const cityOf = name => BOARD.find(t => t.name === name);
+// 🌳 Jombang (Jawa Timur): kota istimewa satu-satunya di warnanya, Landmark-nya Ringin Contong.
+// Sewanya selalu x2 (sudah "satu warna penuh"), tapi tidak dihitung untuk Triple Monopoly.
+const JOMBANG = { ...city('Jombang', 'jombang', 230, [14, 70, 200, 520, 650, 800], 150), special: 'ringin' };
 const NORMAL_BOARD = [
   { type: 'start', name: 'Mulai' },
-  cityOf('Kupang'), cityOf('Ambon'), chance(),
+  cityOf('Kupang'), cityOf('Ambon'), chance(), { type: 'attack', name: 'Serang Monster', icon: '⚔️' },
   cityOf('Mataram'), tourism('Labuan Bajo', 150, '🦎'), cityOf('Palu'), cityOf('Kendari'),
   { type: 'jail', name: 'Pulau Terpencil', icon: '🌴' },
-  cityOf('Pontianak'), cityOf('Banjarmasin'), { type: 'slot', name: 'Mesin Game' },
+  cityOf('Pontianak'), cityOf('Banjarmasin'), { type: 'slot', name: 'Mesin Game' }, { type: 'attack', name: 'Serang Monster', icon: '⚔️' },
   cityOf('Samarinda'), tourism('Danau Toba', 180, '🏞️'), cityOf('Padang'), cityOf('Palembang'),
   { type: 'festival', name: 'Festival' },
-  cityOf('Manado'), chance(), cityOf('Makassar'),
+  cityOf('Manado'), JOMBANG, cityOf('Makassar'), { type: 'attack', name: 'Serang Monster', icon: '⚔️' },
   cityOf('Balikpapan'), tourism('Borobudur', 220, '🛕'), cityOf('Semarang'), cityOf('Yogyakarta'),
   { type: 'travel', name: 'Travelling' },
-  cityOf('Medan'), tourism('Raja Ampat', 250, '🏝️'), cityOf('Bandung'),
+  cityOf('Medan'), tourism('Raja Ampat', 250, '🏝️'), cityOf('Bandung'), { type: 'attack', name: 'Serang Monster', icon: '⚔️' },
   chance(), { type: 'tax', name: 'Pajak', amount: 100 * K }, cityOf('Denpasar'), cityOf('Jakarta')
 ];
 // Sewa wisata = harga x tourismRent x pengali tingkat x jumlah wisata milik pemiliknya (punya 2 = x2, punya 3 = x3).
@@ -349,12 +353,52 @@ NORMAL.tourismRent = 0.25;
 NORMAL.tourismLevelMult = [1, 1.2, 1.4, 1.7];
 NORMAL.tourismLevels = ['Destinasi', 'Ramai', 'Populer', 'Landmark'];
 NORMAL.tourismWin = 4;                  // kuasai 4 tempat wisata = langsung menang
+NORMAL.wangsitChance = 0.6;             // 🌳 berhenti di Jombang: 60% peluang dapat kartu sakti (wangsit Ringin Contong)
+NORMAL.ringinRoots = 1.5;               // 🌳 Jombang jadi Landmark: kota pemiliknya di baris yang sama sewanya x1,5 (akar beringin)
+NORMAL.ringinShade = 0.5;               // 🌳 pemilik Ringin Contong berteduh: sewa yang dia bayar di baris itu diskon 50%
+// 🔥 Fase Genting (late game): mulai menit ke-30, supaya pemain tidak cuma bersembunyi di petak aman.
+NORMAL.lateMinute = 30;                 // fase genting mulai menit ke-30
+NORMAL.lateStepMinutes = 5;             // inflasi sewa naik tiap 5 menit
+NORMAL.lateInflation = 0.15;            // +15% sewa tiap tahap (menit 30: x1,15 ... menit 55: x1,9)
+NORMAL.safeTax = 0.03;                  // ongkos sembunyi di Pulau Terpencil / Kesempatan: 3% kekayaan
+NORMAL.safeTaxMin = 50 * K;             // minimal Rp 500 rb
+NORMAL.safeTaxMax = 500 * K;            // maksimal Rp 5 jt
+NORMAL.lateAim = 0.5;                   // peluang bidikan dadu tinggal 50%
+NORMAL.lateTakeover = 0.75;             // harga ambil alih diskon 25%
+// 👹 Monster raksasa: muncul berkala, diserang lewat petak Serang Monster di tiap sisi papan.
+NORMAL.tilangHalf = 0.5;                // 🚓 ditilang: bayar 50% sewa tanpa hak ambil alih
+// Kelas karakter: tiap kelas spesialis satu cara menang dan unggul melawan kelas berikutnya.
+NORMAL.classes = {
+  bankrupt: { icon: '💀', name: 'Bankrupt', goal: 'menguras uang lawan sampai bangkrut', passive: 'Sewa yang kamu terima +5%.', beats: 'Triple' },
+  triple: { icon: '🎨', name: 'Triple', goal: 'menguasai 3 kawasan warna', passive: 'Beli tanah dan ambil alih diskon 30% di warna yang sudah kamu miliki.', beats: 'Line' },
+  line: { icon: '📏', name: 'Line', goal: 'menguasai satu sisi papan', passive: 'Beli tanah dan ambil alih diskon 20% di sisi tempat kamu sudah punya 2 properti.', beats: 'Tourism' },
+  tourism: { icon: '🏝️', name: 'Tourism', goal: 'menguasai 4 tempat wisata', passive: 'Harga wisata −40% dan sewa wisatamu +40%.', beats: 'Bankrupt' }
+};
+NORMAL.classDiscount = 0.8;             // pasif Line: harga tanah dan ambil alih x0,8
+NORMAL.tripleDiscount = 0.7;            // pasif Triple: harga tanah dan ambil alih x0,7
+NORMAL.tourismClassPrice = 0.6;         // pasif Tourism: harga wisata x0,6
+NORMAL.tourismClassRent = 0.4;          // pasif Tourism: sewa wisata +40%
+NORMAL.barikadeCut = 0.25;              // 🚓 Barikade Evakuasi: Polisi merebut 25% hadiah monster
+NORMAL.sogokMin = 500 * K;              // 🚓 sogok paling murah Rp 5 jt (harus tunai)
+NORMAL.sogokPct = 1 / 3;                // 🚓 sogok = sepertiga uang tunai kalau lebih besar dari minimalnya
+NORMAL.kaijuFirstRound = 5;             // muncul pertama di putaran ke-5
+NORMAL.kaijuRespawn = 6;                // muncul lagi 6 putaran setelah mati / pergi
+NORMAL.kaijuRounds = 8;                 // pergi sendiri setelah 8 putaran kalau tidak dikalahkan
+NORMAL.kaijuHpPerPlayer = 25;           // HP = 25 x jumlah pemain hidup (minimal 75)
+NORMAL.kaijuHitChance = 0.6;            // peluang serangan kena
+NORMAL.kaijuDamage = [35, 65];          // kerusakan tiap serangan yang kena
+NORMAL.kaijuHitReward = 300 * K;        // serangan kena: Rp 3 jt
+NORMAL.kaijuKillReward = 1500 * K;      // mengalahkan: Rp 15 jt + 1 kartu sakti
+NORMAL.kaijuMissCost = 200 * K;         // serangan gagal: biaya rumah sakit Rp 2 jt
+NORMAL.kaijuPatrol = 50 * K;            // petak saat tidak ada monster: uang patroli Rp 500 rb
+NORMAL.kaijuStompChance = 0.7;          // tiap putaran, 70% peluang mengamuk: 1 bangunan acak turun 1 tingkat
 GROUP_COLORS.wisata = '#0fb5ae';
+GROUP_COLORS.jombang = '#3f6b1f'; // hijau beringin
 
 // Kesempatan ala Monopoli klasik.
 const NORMAL_KESEMPATAN = [
   // --- Gerak ---
-  { title: 'Keliling Dunia', icon: '✈️', text: 'Langsung ke Travelling dan bebas pilih tujuan.', effects: [{ type: 'goto', tile: 24 }] },
+  { title: 'Keliling Dunia', icon: '✈️', text: 'Langsung ke Travelling dan bebas pilih tujuan.', effects: [{ type: 'goto', tile: NORMAL_BOARD.findIndex(t => t.type === 'travel') }] },
   // Pindah bebas ke petak mana saja di baris (sisi papan) tempatmu berada
   { title: 'Ojek Online', icon: '🛵', text: 'Pesan ojek online! Bebas pergi ke petak mana saja di baris ini.', effects: [{ type: 'travelRow' }] },
   { title: 'Naik KRL', icon: '🚆', text: 'Naik kereta komuter. Bebas pergi ke petak mana saja di baris ini.', effects: [{ type: 'travelRow' }] },
@@ -376,7 +420,7 @@ const NORMAL_KESEMPATAN = [
   { power: 'angel' }, { power: 'angel' },
   // --- Bonus (semua kartu Kesempatan menguntungkan pemain yang mengambilnya) ---
   { power: 'badai' },
-  { title: 'Tiket Festival', icon: '🎪', text: 'Dapat undangan festival! Langsung ke petak Festival dan adakan festival di propertimu. Kalau melewati Mulai, terima gaji.', effects: [{ type: 'goto', tile: 16 }] },
+  { title: 'Tiket Festival', icon: '🎪', text: 'Dapat undangan festival! Langsung ke petak Festival dan adakan festival di propertimu. Kalau melewati Mulai, terima gaji.', effects: [{ type: 'goto', tile: NORMAL_BOARD.findIndex(t => t.type === 'festival') }] },
   { title: 'Bantuan Modal', icon: '💵', text: 'Dapat bantuan modal usaha. Terima Rp 1.500.000.', effects: [{ type: 'receive', amount: 150 }] },
   { title: 'Menang Arisan', icon: '🎉', text: 'Kamu menang arisan! Terima Rp 300.000 dari setiap pemain.', effects: [{ type: 'collectEach', amount: 30 }] },
 ];
@@ -385,30 +429,31 @@ const NORMAL_KESEMPATAN = [
 // Stat dasar sama untuk semua avatar (diskon tanah 5%, diskon bangun 5%, kontrol dadu 15%) supaya yang menentukan
 // adalah cara bermain. Skill diseimbangkan dari hasil uji ratusan giliran bot: yang terlalu kuat dikurangi, yang lemah dikuatkan.
 const NORMAL_AVATARS = {
-  manusia:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'nego', icon: '🤝', name: 'Raja Akuisisi', desc: 'Satu-satunya yang bisa mengambil alih Landmark lawan (2,5× nilainya). Ambil alih kota lain cukup 1,7× (pemain lain 2×).', recommend: ['cap_notaris', 'renovasi_gratis', 'bidikan_jitu', 'tiket_pesawat'], recWhy: 'Ambil alih kota lawan lalu Renovasi Gratis bisa langsung menjadikannya Landmark. Bidikan Jitu dan Tiket Pesawat membantu mendarat di kota incaran.' },
-  pejabat:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'proyek', chance: 0.9, landChance: 1, rentMult: 1.2, icon: '🏗️', name: 'Proyek Titipan', desc: 'Semua sewa propertimu +20%. 90% peluang bangunan yang kamu bangun gratis, dan beli tanah tanpa bangunan selalu setengah harga.', recommend: ['stempel_dinas', 'arsitek_kilat', 'pemungut_sewa', 'menarik_rezeki'], recWhy: 'Bangun gratis + Arsitek Kilat = cepat punya Landmark. Sewa +20% makin besar dengan Pemungut Sewa dan Menarik Rezeki.' },
-  kepalasawit: { land: 0.05, build: 0.05, dice: 0.15, skill: 'panen', amount: 500 * K, icon: '🌾', name: 'Panen Raya', desc: 'Setiap melewati Mulai: gaji +Rp 5 jt dan satu kotamu naik 1 tingkat gratis (sampai Kabupaten).', recommend: ['pupuk_super', 'dadu_kembar', 'magnet_rezeki', 'arsitek_kilat'], recWhy: 'Makin sering lewat Mulai, makin sering gajian dan naik tingkat gratis. Dadu Kembar mempercepat putaran.' },
-  komodo:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'seret', chance: 0.15, icon: '🪢', name: 'Seret Lawan', desc: '15% peluang menyeret lawan yang kamu lewati ke propertimu dengan sewa termahal, dan dia langsung membayar sewanya (paling banyak 1 lawan per giliran).', recommend: ['liur_komodo', 'arsitek_kilat', 'panitia_festival', 'pemungut_sewa'], recWhy: 'Lawan diseret ke propertimu yang sewanya paling mahal, jadi besarkan satu properti andalan (Landmark, Festival).' },
-  ayam:        { land: 0.05, build: 0.05, dice: 0.15, skill: 'kokok', chance: 0.45, icon: '🐓', name: 'Kokok Pagi', desc: '45% peluang boleh melempar dadu sekali lagi setelah berjalan (sekali per giliran).', recommend: ['jengger_emas', 'makelar_tanah', 'magnet_rezeki', 'dadu_kembar'], recWhy: 'Lempar dadu lagi = lebih sering mendarat dan membeli tanah. Makelar Tanah membuatnya murah.' },
-  kucing:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'mulus', chance: 0.75, icon: '🐾', name: 'Mendarat Mulus', desc: '75% peluang sewa yang kamu bayar hanya setengah.', recommend: ['kalung_lonceng', 'kartu_cashback', 'jimat_penangkal', 'tiket_pesawat'], recWhy: 'Gaya bertahan: sewa yang kamu bayar kecil, cashback mengembalikan sebagian, dan serangan sering tertangkis.' },
-  pesawat:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'jalan', chance: 0.35, icon: '✈️', name: 'Terbang Bebas', desc: '35% peluang dapat Travelling setelah berhenti di petak yang tidak menagihmu, termasuk setelah membeli atau membangun. Setelah terbang, istirahat 1 giliran.', recommend: ['lounge_bandara', 'makelar_tanah', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Terbang bebas memilih tujuan: kejar tanah kosong (murah dengan Makelar Tanah) dan tempat wisata.' },
-  angkot:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'setoran', amount: 120 * K, icon: '🚐', name: 'Tarik Setoran', desc: 'Terima Rp 1,2 jt dari setiap lawan yang kamu lewati.', recommend: ['klakson_telolet', 'dadu_kembar', 'magnet_rezeki', 'kredit_lunak'], recWhy: 'Setoran dari setiap lawan yang dilewati: makin banyak bergerak makin banyak setoran.' },
-  pocong:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'gentayangan', chance: 0.75, mult: 2, icon: '👻', name: 'Gentayangan', desc: '75% peluang lawan yang berhenti di tanahmu membayar sewa 2×.', recommend: ['kain_kafan', 'arsitek_kilat', 'pemungut_sewa', 'menarik_rezeki'], recWhy: 'Sewa 2× paling terasa di Landmark dan petak Festival. Pemungut Sewa menambah tiap sewa yang masuk.' },
-  tuyul:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'colong', chance: 0.8, pct: 0.12, cap: 150 * K, icon: '👶', name: 'Colong Duit', desc: '80% peluang mencuri 12% uang lawan yang kamu lewati atau yang ada di petak tempatmu berhenti (maks Rp 1,5 jt).', recommend: ['kendi_tuyul', 'dadu_kembar', 'bidikan_jitu', 'jimat_penangkal'], recWhy: 'Colong uang lawan yang dilewati atau satu petak denganmu: atur langkah dengan Bidikan Jitu dan Dadu Kembar.' },
-  monster:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'teror', chance: 0.75, icon: '👾', name: 'Teror', desc: '75% peluang tidak membayar sewa di tanah lawan.', recommend: ['taring_monster', 'pembawa_bencana', 'petugas_pln', 'kartu_cashback'], recWhy: 'Sering singgah di tanah lawan tanpa bayar: sekalian rusak propertinya dengan Pembawa Bencana atau padamkan listriknya.' },
-  robot:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'penagih', chance: 0.45, pct: 0.1, cap: 300 * K, icon: '🤖', name: 'Penagih Utang', desc: '45% peluang lawan yang berhenti di tanahmu juga ditagih 10% dari total kekayaannya (maks Rp 3 jt), bikin lawan cepat terlilit utang.', recommend: ['debt_collector', 'pemungut_sewa', 'arsitek_kilat', 'menarik_rezeki'], recWhy: 'Mode membangkrutkan: makin sering lawan mendarat di tanahmu, makin cepat dia terlilit utang. Debt Collector menambah tagihan tunai.' },
-  monyet:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'usil', chance: 0.6, icon: '🐒', name: 'Usil', desc: '60% peluang mencuri 1 kartu sakti acak dari lawan yang kamu lewati atau yang ada di petak tempatmu berhenti.', recommend: ['pisang_ajaib', 'kolektor_kartu', 'dadu_kembar', 'bidikan_jitu'], recWhy: 'Kumpulkan kartu sakti sebanyak-banyaknya lalu serang lawan. Pisang Ajaib dan Kolektor Kartu menambah kartu.' },
-  superhero:   { land: 0.05, build: 0.05, dice: 0.15, skill: 'tameng', chance: 0.5, amount: 100 * K, icon: '🦸', name: 'Tameng Baja', desc: '50% peluang menangkis kartu serangan lawan (Sabotase, Akuisisi, Gempa, Badai, Pemadaman, Bencana, dll.), dan penyerangnya membayar Rp 1 jt kepadamu.', recommend: ['jubah_pahlawan', 'jimat_penangkal', 'pemungut_sewa', 'arsitek_kilat'], recWhy: 'Hampir kebal serangan: setiap serangan yang tertangkis justru memberimu uang. Bangun Landmark dengan tenang.' },
-  ojol:        { land: 0.05, build: 0.05, dice: 0.15, skill: 'antar', icon: '🛵', name: 'Antar Jemput', desc: 'Setelah dadu dilempar, kamu boleh memilih maju 1 petak lebih sedikit, sesuai dadu, atau 1 petak lebih jauh.', recommend: ['helm_hijau', 'makelar_tanah', 'tiket_pesawat', 'arsitek_kilat'], recWhy: 'Pilih sendiri petak pendaratan (−1/0/+1): hindari tanah lawan yang mahal dan incar tanah kosong.' },
-  naga:        { land: 0.05, build: 0.05, dice: 0.15, skill: 'harta', pct: 0.1, cap: 400 * K, icon: '🐉', name: 'Harta Naga', desc: 'Setiap melewati Mulai, dapat bunga 10% dari uang tunaimu (maks Rp 4 jt). Makin kaya, makin cepat bertambah.', recommend: ['mutiara_naga', 'magnet_rezeki', 'dadu_kembar', 'kartu_cashback'], recWhy: 'Simpan uang tunai sebanyak mungkin supaya bunga Harta Naga dan Mutiara Naga makin besar tiap putaran.' },
-  putri:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'titah', chance: 0.9, icon: '👸', name: 'Titah Raja', desc: '90% peluang menolak setiap ambil alih atas kotamu, juga kartu Akuisisi, Kontrak Sementara, dan Tukar Properti.', recommend: ['upeti_keraton', 'arsitek_kilat', 'pemungut_sewa', 'panitia_festival'], recWhy: 'Kotamu hampir selalu aman dari perebutan, jadi relatif aman membangun Landmark dan memeras sewa dalam waktu lama.' },
-  harimau:     { land: 0.05, build: 0.05, dice: 0.15, skill: 'terkam', chance: 0.5, amount: 50 * K, icon: '🐯', name: 'Terkam', desc: '50% peluang lawan yang kamu lewati terdorong mundur 3 petak dan menjatuhkan Rp 500 rb untukmu.', recommend: ['taring_harimau', 'dadu_kembar', 'bidikan_jitu', 'jimat_penangkal'], recWhy: 'Makin sering melewati lawan makin sering menerkam: bergerak jauh dengan Dadu Kembar dan atur langkah dengan Bidikan Jitu.' },
-  dukun:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'santet', amount: 150 * K, icon: '🧙', name: 'Santet', desc: 'Setiap melewati Mulai, lawan terkaya kena santet dan membayar Rp 1,5 jt kepadamu (bisa ditangkis Angel, Jimat, atau Tameng).', recommend: ['boneka_santet', 'magnet_rezeki', 'dadu_kembar', 'kartu_cashback'], recWhy: 'Santet aktif tiap lewat Mulai, jadi percepat putaran dengan Dadu Kembar dan tambah pemasukan saat gajian.' },
-  becak:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'pelan', amount: 50 * K, icon: '🛺', name: 'Pelan tapi Pasti', desc: 'Jumlah dadumu tidak pernah kurang dari 5. Setiap kali dadu kecil diganti, kamu dapat ongkos Rp 500 rb.', recommend: ['bel_becak', 'makelar_tanah', 'bidikan_jitu', 'arsitek_kilat'], recWhy: 'Langkahmu selalu cukup jauh untuk mencapai tanah kosong: beli murah dengan Makelar Tanah lalu bangun.' },
-  jawara:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'preman', chance: 0.5, icon: '🗡️', name: 'Preman Pasar', desc: '50% peluang lawan yang berhenti tepat di sebelah propertimu ikut membayar setengah sewa properti itu kepadamu.', recommend: ['golok_jawara', 'arsitek_kilat', 'pemungut_sewa', 'makelar_tanah'], recWhy: 'Kuasai kota yang berdampingan supaya hampir setiap petak di sekitarnya jadi daerah kekuasaanmu.' },
-  pedagang:    { land: 0.05, build: 0.05, dice: 0.15, skill: 'lapak', amount: 50 * K, icon: '🛒', name: 'Lapak', desc: 'Lawan yang berhenti di petak Kesempatan, Mesin Game, atau Festival jajan di lapakmu: membayar Rp 500 rb kepadamu.', recommend: ['gerobak_dagang', 'bonus_properti', 'magnet_rezeki', 'kredit_lunak'], recWhy: 'Pemasukan dari lapak datang sendiri sepanjang permainan; tambah lagi dengan bonus gajian.' },
-  satpol:      { land: 0.05, build: 0.05, dice: 0.15, skill: 'segel', chance: 0.4, icon: '🚔', name: 'Segel Bangunan', desc: 'Setiap melewati Mulai, 40% peluang menyegel bangunan tertinggi milik lawan (termasuk Landmark) sampai jadi tanah kosong. Bisa ditangkis Angel, Jimat, atau Tameng.', recommend: ['surat_teguran', 'dadu_kembar', 'jimat_penangkal', 'pemungut_sewa'], recWhy: 'Segel aktif tiap lewat Mulai: percepat putaran, dan pakai kartu Sabotase dari Surat Teguran untuk terus menekan lawan.' },
-  alien:       { land: 0.05, build: 0.05, dice: 0.15, skill: 'lubang', chance: 0.85, turns: 2, icon: '🛸', name: 'Lubang Hitam', desc: '85% peluang saat berhenti di propertimu sendiri: pasang lubang hitam di petak mana saja. Setiap lawan yang berhenti di sana tersedot ke kota tempat lubang itu dibuka, terkurung 2 giliran di sana, dan membayar sewanya (bisa ditangkis Angel, Jimat, atau Tameng). Lubang hitam tetap aktif sampai Alien memindahkannya (boleh dilewati supaya lubang lama tetap dipakai). Alien sendiri bebas bayar sewa/pajak saat berhenti di lubang hitamnya.', recommend: ['kristal_alien', 'arsitek_kilat', 'bidikan_jitu', 'pemungut_sewa'], recWhy: 'Makin sering berhenti di tanah sendiri makin sering membuat lubang hitam. Pasang di depan tanahmu yang mahal supaya lawan terkurung tepat sebelum membayar sewa berikutnya.' }
+  manusia:     { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'nego', icon: '🤝', name: 'Raja Akuisisi', desc: 'Satu-satunya yang bisa mengambil alih Landmark lawan (2,2× nilainya). Ambil alih kota lain cukup 1,5× (pemain lain 2×).', recommend: ['cap_notaris', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  pejabat:     { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'proyek', chance: 0.9, landChance: 1, rentMult: 1.2, icon: '🏗️', name: 'Proyek Titipan', desc: 'Semua sewa propertimu +20%. 90% peluang bangunan yang kamu bangun gratis, dan beli tanah tanpa bangunan selalu setengah harga.', recommend: ['stempel_dinas', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  kepalasawit: { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'panen', amount: 500 * K, icon: '🌾', name: 'Panen Raya', desc: 'Setiap melewati Mulai: gaji +Rp 5 jt dan satu kotamu naik 1 tingkat gratis (sampai Kabupaten).', recommend: ['pupuk_super', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  komodo:      { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'seret', chance: 0.15, icon: '🪢', name: 'Seret Lawan', desc: '15% peluang menyeret lawan yang kamu lewati ke propertimu dengan sewa termahal, dan dia langsung membayar sewanya (paling banyak 1 lawan per giliran).', recommend: ['liur_komodo', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  ayam:        { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'kokok', chance: 0.5, icon: '🐓', name: 'Kokok Pagi', desc: '50% peluang boleh melempar dadu sekali lagi setelah berjalan (sekali per giliran). Boleh dilewati, dan lemparan tambahan tidak bisa dibidik, jadi pikirkan risikonya.', recommend: ['jengger_emas', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  kucing:      { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'mulus', chance: 0.75, icon: '🐾', name: 'Mendarat Mulus', desc: '75% peluang sewa yang kamu bayar hanya setengah.', recommend: ['kalung_lonceng', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  pesawat:     { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'jalan', chance: 0.35, icon: '✈️', name: 'Terbang Bebas', desc: '35% peluang dapat Travelling setelah berhenti di petak yang tidak menagihmu, termasuk setelah membeli atau membangun. Setelah terbang, istirahat 1 giliran.', recommend: ['lounge_bandara', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  angkot:      { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'setoran', amount: 120 * K, icon: '🚐', name: 'Tarik Setoran', desc: 'Terima Rp 1,2 jt dari setiap lawan yang kamu lewati.', recommend: ['klakson_telolet', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  pocong:      { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'gentayangan', chance: 0.75, mult: 2, icon: '👻', name: 'Gentayangan', desc: '75% peluang lawan yang berhenti di tanahmu membayar sewa 2×.', recommend: ['kain_kafan', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  tuyul:       { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'colong', chance: 0.8, pct: 0.12, cap: 150 * K, icon: '👶', name: 'Colong Duit', desc: '80% peluang mencuri 12% uang lawan yang kamu lewati atau yang ada di petak tempatmu berhenti (maks Rp 1,5 jt).', recommend: ['kendi_tuyul', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  monster:     { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'teror', chance: 0.6, icon: '👾', name: 'Teror', desc: '60% peluang tidak membayar sewa di tanah lawan.', recommend: ['taring_monster', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  robot:       { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'penagih', chance: 0.75, pct: 0.12, cap: 500 * K, icon: '🤖', name: 'Penagih Utang', desc: '75% peluang lawan yang berhenti di tanahmu juga ditagih 12% dari total kekayaannya (maks Rp 5 jt), bikin lawan cepat terlilit utang.', recommend: ['debt_collector', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  monyet:      { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'usil', chance: 0.85, icon: '🐒', name: 'Usil', desc: '85% peluang mencuri 1 kartu sakti acak dari lawan yang kamu lewati atau yang ada di petak tempatmu berhenti.', recommend: ['pisang_ajaib', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  superhero:   { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'tameng', chance: 0.7, amount: 200 * K, icon: '🦸', name: 'Tameng Baja', desc: '70% peluang menangkis kartu serangan lawan (Sabotase, Akuisisi, Gempa, Badai, Pemadaman, Bencana, dll.), dan penyerangnya membayar Rp 2 jt kepadamu.', recommend: ['jubah_pahlawan', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  ojol:        { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'antar', icon: '🛵', name: 'Antar Jemput', desc: 'Setelah dadu dilempar, kamu boleh memilih maju 1 petak lebih sedikit, sesuai dadu, atau 1 petak lebih jauh. Jalur Tikus: kamu menyelip melewati palang Polisi tanpa berhenti.', recommend: ['helm_hijau', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  naga:        { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'harta', pct: 0.2, cap: 1000 * K, icon: '🐉', name: 'Harta Naga', desc: 'Setiap melewati Mulai, dapat bunga 20% dari uang tunaimu (maks Rp 10 jt). Makin kaya, makin cepat bertambah.', recommend: ['mutiara_naga', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  putri:       { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'titah', chance: 0.9, icon: '👸', name: 'Titah Raja', desc: '90% peluang menolak setiap ambil alih atas kotamu. Kartu Akuisisi, Kontrak Sementara, dan Tukar Properti tetap menembus.', recommend: ['upeti_keraton', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  harimau:     { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'terkam', chance: 0.7, amount: 100 * K, icon: '🐯', name: 'Terkam', desc: '70% peluang lawan yang kamu lewati terdorong mundur 3 petak dan menjatuhkan Rp 1 jt untukmu.', recommend: ['taring_harimau', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  dukun:       { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'santet', amount: 400 * K, icon: '🧙', name: 'Santet', desc: 'Setiap melewati Mulai, lawan terkaya kena santet dan membayar Rp 4 jt kepadamu (bisa ditangkis Angel, Jimat, atau Tameng).', recommend: ['boneka_santet', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  becak:       { class: 'line', land: 0.05, build: 0.05, dice: 0.20, skill: 'pelan', min: 6, amount: 150 * K, icon: '🛺', name: 'Pelan tapi Pasti', desc: 'Kalau tidak sedang membidik, jumlah dadumu tidak pernah kurang dari 6. Setiap kali dadu kecil diganti, kamu dapat ongkos Rp 1,5 jt.', recommend: ['bel_becak', 'helm_sni', 'pengacara_properti', 'tiket_pesawat'], recWhy: 'Jalur Line: fokus pada satu sisi papan, termasuk wisatanya, sampai seluruh sisi itu milikmu.' },
+  jawara:      { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'preman', chance: 0.35, icon: '🗡️', name: 'Preman Pasar', desc: '35% peluang lawan yang berhenti tepat di sebelah propertimu ikut membayar setengah sewa properti itu kepadamu.', recommend: ['golok_jawara', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' },
+  pedagang:    { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'lapak', amount: 150 * K, icon: '🛒', name: 'Lapak', desc: 'Lawan yang berhenti di petak Kesempatan, Mesin Game, atau Festival jajan di lapakmu: membayar Rp 1,5 jt kepadamu.', recommend: ['gerobak_dagang', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  satpol:      { class: 'triple', land: 0.05, build: 0.15, dice: 0.15, skill: 'segel', chance: 0.7, icon: '🚔', name: 'Segel Bangunan', desc: 'Setiap melewati Mulai, 70% peluang menyegel bangunan tertinggi milik lawan (termasuk Landmark) sampai jadi tanah kosong. Bisa ditangkis Angel, Jimat, atau Tameng.', recommend: ['surat_teguran', 'helm_sni', 'arsitek_kilat', 'renovasi_gratis'], recWhy: 'Jalur Triple: bidik kota sewarna dengan Helm SNI, lalu bangun cepat sampai 3 kawasan penuh.' },
+  alien:       { class: 'tourism', land: 0.10, build: 0.05, dice: 0.15, skill: 'lubang', chance: 0.85, turns: 2, icon: '🛸', name: 'Lubang Hitam', desc: '85% peluang saat berhenti di propertimu sendiri: pasang lubang hitam di petak mana saja. Setiap lawan yang berhenti di sana tersedot ke kota tempat lubang itu dibuka, terkurung 2 giliran di sana, dan membayar sewanya (bisa ditangkis Angel, Jimat, atau Tameng). Lubang hitam tetap aktif sampai Alien memindahkannya (boleh dilewati supaya lubang lama tetap dipakai). Alien sendiri bebas bayar sewa/pajak saat berhenti di lubang hitamnya.', recommend: ['kristal_alien', 'helm_sni', 'pemandu_wisata', 'tiket_pesawat'], recWhy: 'Jalur Tourism: rebut tempat wisata lebih dulu; wisata tidak bisa diambil alih dan memberi pemasukan aman.' },
+  polisi:      { class: 'bankrupt', land: 0.05, build: 0.10, dice: 0.15, rentMult: 1.05, skill: 'tilang', icon: '🚓', name: 'Tilang', desc: 'Saat kamu berdiri di propertimu sendiri, palang berhenti turun: lawan pertama yang lewat setelah giliranmu wajib berhenti di sana, lalu palang terangkat sampai giliranmu berikutnya. Abang Ojol bisa menyelip lewat. Yang kena tilang memilih: bayar sewa penuh (boleh ambil alih), bayar 50% sewa (tidak berlaku di Landmark), atau menyogokmu (mulai Rp 5 jt, makin kaya makin mahal). Barikade Evakuasi: tanahmu kebal amukan monster raksasa, dan kamu merebut 25% hadiah kalau lawan mengalahkannya.', recommend: ['kawalan_darurat', 'helm_sni', 'pemungut_sewa', 'jimat_penangkal'], recWhy: 'Jalur Bankrupt: Helm SNI membantu menghindari sewa lawan, lalu kuras uang lawan lewat sewa dan skillmu.' }
 };
 
 const BOT_NAMES = ['Bot Joko', 'Bot Siti', 'Bot Ucok', 'Bot Made', 'Bot Rina', 'Bot Asep', 'Bot Dewi', 'Bot Bambang',

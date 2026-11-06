@@ -125,6 +125,28 @@ Dipilih di lobi (tombol **WNI / Normal**) sebelum permainan dimulai. Aturan di a
 - **Bangkrut**: bank hanya mau meminjami kalau masih ada aset yang belum digadai. Kalau semua aset sudah digadai dan uang tidak cukup membayar, satu-satunya pilihan adalah bangkrut (berlaku di kedua mode).
 - Setelah mengambil alih Kabupaten lawan, kamu langsung ditawari menjadikannya Landmark.
 - **Tidak ada cicilan sewa** di mode Normal: bayar langsung, pakai kartu Angel / Bebas Sewa, atau cari uang dengan gadai dan pinjam bank. Mode WNI tetap bisa mencicil.
+- **🌳 Jombang, kota istimewa** (sisi atas, di antara Manado dan Makassar). Landmark-nya **Ringin Contong**: tugu contong (kerucut) dengan pohon beringin raksasa dan akar gantung, paling tinggi di antara semua landmark.
+  - Satu-satunya kota di warnanya, jadi sewanya selalu ×2. Tidak dihitung untuk Triple Monopoly, tapi tetap dihitung untuk Line Monopoly sisi atas.
+  - **Wangsit**: siapa pun yang berhenti di Jombang 60% peluang dapat kartu sakti acak, diiringi paduan suara malaikat "haaaa" dan cahaya emas.
+  - **Akar beringin** (setelah jadi Landmark): kota lain milik pemiliknya di sisi atas sewanya ×1,5.
+  - **Berteduh** (setelah jadi Landmark): pemiliknya hanya membayar ½ sewa di kota lawan sisi atas.
+  - Angka-angkanya: `wangsitChance`, `ringinRoots`, `ringinShade` di `NORMAL`.
+- **🔥 Fase Genting** (30 menit terakhir), supaya akhir permainan tidak diisi pemain yang cuma bersembunyi di petak aman:
+  - **Inflasi sewa**: semua sewa naik 15% tiap 5 menit (menit 30: ×1,15 … menit 55: ×1,9). Pengalinya tampil di sebelah jam.
+  - **Ongkos sembunyi**: berhenti di Pulau Terpencil atau Kesempatan bayar 3% kekayaan (Rp 500 rb – Rp 5 jt) ke bank.
+  - **Bidikan dadu melemah**: peluang bidikan tepat sasaran tinggal separuh.
+  - **Ambil alih diskon 25%**, supaya papan lebih sering berpindah tangan.
+  - Angka-angkanya: `lateMinute`, `lateInflation`, `safeTax`, `lateAim`, `lateTakeover` di `NORMAL`.
+- **👹 Monster raksasa**: muncul di putaran ke-5, lalu 6 putaran setelah mati atau pergi. HP-nya 25 × jumlah pemain (minimal 75), terlihat di bar HP di atas kepalanya dan di layar. Papan kini 36 petak: tiap sisi punya petak **⚔️ Serang Monster**.
+  - Berhenti di petak itu boleh menyerang: 60% kena (35–65 HP) dan dapat Rp 3 jt. Mengalahkan: Rp 15 jt + 1 kartu sakti. Meleset: bayar Rp 2 jt. Kalau belum ada monster: uang patroli Rp 500 rb.
+  - Tiap putaran 70% peluang mengamuk: 1 bangunan acak turun 1 tingkat. Tidak dikalahkan dalam 8 putaran, monster pergi tanpa hadiah.
+  - Angka-angkanya: `kaiju*` di `NORMAL`.
+- **🚓 Polisi (Tilang)**: selama berdiri di propertinya sendiri, palang berhenti turun dan lawan pertama yang lewat wajib berhenti (palang terangkat sampai giliran Polisi berikutnya, dan Abang Ojol bisa menyelip), lalu memilih: bayar sewa penuh (boleh ambil alih), bayar 50% sewa (tidak ada di Landmark), atau sogok tunai (sepertiga uang tunai, minimal Rp 5 jt). Dua pilihan terakhir tidak memberi hak ambil alih. **Barikade Evakuasi**: tanahnya kebal amukan monster, dan dia merebut 25% hadiah kalau lawan mengalahkan monster.
+- **Kelas karakter**: tiap avatar masuk satu kelas (`class` di `NORMAL_AVATARS`, aturannya di `NORMAL.classes`). Tiap kelas unggul melawan kelas berikutnya, dan mode tim bebas mencampur kelas.
+  - 💀 **Bankrupt** (Robot, Pocong, Jawara, Tuyul, Dukun, Komodo, Polisi): sewa diterima +5%, diskon bangun 10%. Unggul melawan Triple.
+  - 🎨 **Triple** (Manusia, Kepala Sawit, Pejabat, Satpol PP, Putri, Superhero): diskon 30% untuk tanah dan ambil alih di warna yang sudah dimiliki, diskon bangun 15%. Unggul melawan Line.
+  - 📏 **Line** (Ojol, Ayam, Becak, Angkot, Harimau, Monster): diskon 20% untuk tanah dan ambil alih di sisi tempat sudah punya 2 properti, kontrol dadu 20%. Unggul melawan Tourism.
+  - 🏝️ **Tourism** (Pesawat, Kucing, Naga, Pedagang, Monyet, Alien): harga wisata −40%, sewa wisata +40%, diskon tanah 10%. Unggul melawan Bankrupt.
 - Tiap avatar punya **skill unik** (lihat `NORMAL_AVATARS` di `board.js`), dan kartu Kesempatan mode Normal berisi kartu serangan dan pertahanan seperti Sabotase, Akuisisi, Kontrak, Gempa, Wabah, Panggil, Tukar, dan Angel.
 
 Isi papan diatur di `NORMAL_BOARD`, angka-angkanya di `NORMAL` (termasuk `tourismRent` dan `tourismWin`), keduanya di `board.js`.
@@ -158,6 +180,22 @@ Daftar liontin ada di `pendants.json`. Untuk menambah liontin cukup tambah satu 
 - **Bisa menyambung ulang:** kalau HP terkunci atau browser tertutup, buka lagi alamatnya dan kamu langsung kembali ke kursimu. Pemain manusia yang benar-benar hilang bisa dilewati gilirannya oleh host.
 - **Permainan tersimpan otomatis** di `game-state.json` (foto avatar di folder `avatars/`), jadi server boleh dimatikan lalu dinyalakan lagi untuk melanjutkan. Untuk mulai dari nol, pilih **⏹ Akhiri → Game baru dari awal** di laptop server, atau hapus file itu.
 - **Tombol ⏹ Akhiri hanya ada di laptop server** (dibuka lewat `localhost` atau alamat Wi-Fi laptop itu sendiri). Dari situ permainan bisa dihentikan kapan saja untuk melihat peringkat, atau diulang dari awal. HP pemain lain tidak melihat tombol ini, dan server menolak perintahnya kalau dikirim dari perangkat lain.
+
+## Suara khusus
+
+File di `public/sounds/custom/` diputar untuk semua pemain saat kejadian berikut. Daftar nama filenya ada di `CUSTOM` pada `public/js/sound.js`.
+
+| Kejadian | File |
+|---|---|
+| Berhenti di daerah lawan | `faaah.mp3` |
+| Menekan Ambil Alih | `akansayalawan.mp3` |
+| Mau ambil alih tapi uang tidak cukup | `prabowo-uang-gak-ada.mp3` |
+| Masuk penjara | `jokowi-kaget.mp3` |
+| Semua aset habis digadai, uang tetap kurang | `tf_nemesis.mp3` |
+| Tadinya kurang bayar sewa, setelah gadai jadi cukup | `jokowi-saya-masih-sanggup-2.mp3` |
+| Membayar pajak | `emotional-damage-meme.mp3` |
+| Membuka kartu Kesempatan | `anime-wow-sound-effect-mp3cut.mp3` |
+| Peringatan Triple, Line, atau Wisata | `solid.mp3` |
 
 ## Mengubah isi permainan
 

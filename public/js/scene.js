@@ -6,9 +6,10 @@ import { levelModel, landmarkModel, tint } from './buildings.js';
 import { createFestivalDecor } from './festival.js';
 import { createTileFx } from './tilefx.js';
 import { createBlackholes } from './blackhole.js';
+import { createKaiju, barrierModel, updateBarrier } from './kaiju.js';
 
 // Ukuran papan tetap; tiap sisi punya (SD - 1) petak biasa selebar W di antara 2 petak sudut (C x C).
-// WNI: 40 petak (SD 10, W 1). Normal: 32 petak (SD 8, petak lebih lebar).
+// WNI: 40 petak (SD 10, W 1). Normal: 36 petak (SD 8, petak lebih lebar).
 const C = 1.6, SIZE = 2 * C + 9, H = SIZE / 2, TEX = 2048, PX = TEX / SIZE;
 let NT = 40, SD = 10, W = 1;
 const BOARD_Y = 0.3;           // tinggi permukaan papan
@@ -31,7 +32,7 @@ function gridPts(n, x0, x1, y0, y1, keep = () => true) {
 const STEP_MS = 230;           // jeda tiap langkah bidak
 const IDLE_MAX_WAIT = 3500;    // pop-up/suara menunggu bidak berhenti paling lama segini (ms)
 
-const ICONS = { start: '➜', jail: '🔒', travel: '🧳', gotojail: '👮', festival: '🎪', slot: '🎰', kesempatan: '❓', musibah: '⚠️', tax: '🧾' };
+const ICONS = { start: '➜', jail: '🔒', travel: '🧳', gotojail: '👮', festival: '🎪', slot: '🎰', attack: '⚔️', kesempatan: '❓', musibah: '⚠️', tax: '🧾' };
 export function tileIcon(t) {
   if (t.icon) return t.icon;
   if (ICONS[t.type]) return ICONS[t.type];
@@ -101,7 +102,15 @@ export function rentMult(BOARD, S, i) {
   if (t.type === 'city' && BOARD.every((b, j) => b.group !== t.group || (S.props[j] && S.props[j].owner === pr.owner))) m *= 2;
   if (t.type === 'tourism') m *= BOARD.filter((b, j) => b.type === 'tourism' && S.props[j] && S.props[j].owner === pr.owner).length;
   if (S.festival && S.festival.tile === i) m *= S.festival.mult;
-  return m;
+  return m * ringinRoots(BOARD, S, i, 1.5);
+}
+// 🌳 Akar beringin (sama dengan server): Jombang sudah Landmark Ringin Contong, maka kota lain
+// milik pemiliknya di baris yang sama sewanya dikali `mult`.
+export function ringinRoots(BOARD, S, i, mult) {
+  const ri = BOARD.findIndex(t => t.special === 'ringin'), pr = S.props[i], rp = ri >= 0 && S.props[ri];
+  if (!rp || i === ri || BOARD[i].type !== 'city' || !pr || !rp.owner || rp.houses !== 5 || rp.mortgaged || pr.owner !== rp.owner) return 1;
+  const side = BOARD.length / 4;
+  return Math.floor(i / side) === Math.floor(ri / side) ? mult : 1;
 }
 function drawBoard(g, BOARD, GC, S, colorOf) {
   g.fillStyle = '#232329'; g.fillRect(0, 0, TEX, TEX);
@@ -161,10 +170,12 @@ function drawBoard(g, BOARD, GC, S, colorOf) {
     } else {
       const band = d * 0.2;
       if (t.type === 'city') { g.fillStyle = GC[t.group]; g.fillRect(x0 + 5, y0 + 5, w - 10, band); g.fillRect(x0 + 5, y0 + 5 + band - 4, w - 10, 4); }
+      if (t.special === 'ringin') { g.fillStyle = '#ffe08a'; g.font = `800 20px ${DISPLAY}`; g.fillText('🌳 ISTIMEWA', 0, y0 + 5 + band / 2); }
       else if (t.type === 'tourism') {
         g.fillStyle = GC.wisata || '#0fb5ae'; g.fillRect(x0 + 5, y0 + 5, w - 10, band);
         g.fillStyle = '#fff'; g.font = `800 22px ${DISPLAY}`; g.fillText('WISATA', 0, y0 + 5 + band / 2);
       }
+      else if (t.type === 'attack') { g.fillStyle = '#7a1420'; g.fillRect(x0 + 5, y0 + 5, w - 10, band); g.fillStyle = '#fff'; g.font = `800 19px ${DISPLAY}`; g.fillText('MONSTER', 0, y0 + 5 + band / 2); }
       else if (t.type === 'kesempatan' || t.type === 'musibah') { g.fillStyle = t.type === 'kesempatan' ? '#22a06b' : '#d9412f'; g.fillRect(x0 + 5, y0 + 5, w - 10, band); }
       let y = y0 + band + 34;
       if (t.type !== 'city') { g.font = `62px ${FONT}`; g.fillStyle = '#1d1d22'; g.fillText(tileIcon(t), 0, y + 26); y += 76; }
@@ -394,6 +405,22 @@ export function createBoardScene(container, opts) {
   scene.add(fest.light);
   const tileFx = createTileFx(scene);
   const holes = createBlackholes(scene);
+  const kaiju = createKaiju(scene, new THREE.Vector3(1.9, BOARD_Y, -0.2), ms => { shakeMs = ms; shakeUntil = performance.now() + ms; });
+  // 🛑 Palang berhenti di petak Polisi yang berdiri di propertinya sendiri
+  const barriers = new Map(); let lastTilang = null;
+  function syncBarriers() {
+    const want = new Set();
+    if (S && S.mode === 'normal') for (const p of S.players) {
+      const pr = S.props[p.pos];
+      if (!p.bankrupt && !p.inJail && !p.tilangUsed && p.look && p.look.model === 'polisi' && pr && pr.owner === p.id && !pr.mortgaged) want.add(p.pos);
+    }
+    for (const [i, g] of barriers) if (!want.has(i)) { scene.remove(g); barriers.delete(i); }
+    for (const i of want) if (!barriers.has(i) && FRAMES[i]) {
+      const f = FRAMES[i], g = barrierModel(f.w), pt = tilePoint(i, 0, -0.1);
+      g.position.set(pt.x, BOARD_Y, pt.z); g.rotation.y = -f.side * Math.PI / 2;
+      scene.add(g); barriers.set(i, g);
+    }
+  }
   let lastHoles = null, lastWarpSeq = null;
   // Lubang hitam: pusaran di petak, busur energi dari Alien saat lubang baru dibuka.
   function syncHoles() {
@@ -613,6 +640,7 @@ export function createBoardScene(container, opts) {
     const now = performance.now();
     const roller = rolled && S.players[S.turn];
     const alive = S.players.filter(p => !p.bankrupt);
+    if (lastTilang === null) lastTilang = S.tilang ? S.tilang.seq : 0;
     if (lastWarpSeq === null) lastWarpSeq = S.warp ? S.warp.seq : 0; // jangan putar ulang saat halaman baru dibuka
     for (const [id, tk] of tokens) if (!alive.some(p => p.id === id)) { scene.remove(tk.obj); tokens.delete(id); }
     alive.forEach(p => {
@@ -621,7 +649,9 @@ export function createBoardScene(container, opts) {
       const from = tk.server;
       tk.server = p.pos;
       const newlyJailed = p.inJail && !tk.jailed;
-      const dest = (from + S.dice[0] + S.dice[1]) % NT, w = S.warp;
+      const dest = (from + S.dice[0] + S.dice[1]) % NT, w = S.warp, tl = S.tilang;
+      // ditilang: jalan sampai petak Polisi lalu berhenti, tidak melewati tujuan dadu
+      if (tl && tl.seq !== lastTilang && tl.pid === p.id && tl.tile === p.pos) { lastTilang = tl.seq; tk.queue.push(...route(from, tl.tile, false)); tk.jailed = !!p.inJail; return; }
       if (w && w.seq !== lastWarpSeq && w.pid === p.id && w.to === p.pos) { lastWarpSeq = w.seq; tk.queue.push(...route(from, w.from, false), { to: w.to, jump: true, warp: w.from }); tk.jailed = !!p.inJail; return; }
       if (roller && roller.id === p.id && !tk.jailed && dest !== p.pos && dest !== from) tk.queue.push(...route(from, dest, false), ...route(dest, p.pos, newlyJailed));
       else tk.queue.push(...route(from, p.pos, newlyJailed));
@@ -656,7 +686,7 @@ export function createBoardScene(container, opts) {
       if (BOARD[i] && BOARD[i].type === 'tourism' && pr.owner) { buildGroup.add(tint(addTourism(tilePoint(i, -0.05, C / 2 - 0.36), pr.tlevel || 0), own)); cityLabel(i, 0.75 + (pr.tlevel || 0) * 0.2); }
       if (S.mode === 'normal' && BOARD[i] && BOARD[i].type === 'city' && pr.houses > 0) {
         // Desa / Kota / Kabupaten sama untuk semua kota; Landmark khas tiap kota.
-        const m = pr.houses === 5 ? landmarkModel(BOARD[i].name) : levelModel(pr.houses);
+        const m = pr.houses === 5 ? landmarkModel(BOARD[i].name) : levelModel(pr.houses, BOARD[i].name);
         const p = tilePoint(i, 0, C / 2 - 0.38);
         m.position.set(p.x, BOARD_Y, p.z); m.rotation.y = -f.side * Math.PI / 2; m.scale.setScalar(1.25);
         buildGroup.add(own ? tint(m, own) : m);
@@ -733,6 +763,8 @@ export function createBoardScene(container, opts) {
     fest.update(now, !!fest.group.parent);
     tileFx.update(now);
     holes.update(now);
+    kaiju.update(now);
+    for (const g of barriers.values()) updateBarrier(g, now);
     for (const [id, tk] of tokens) holes.aura(id, !!(S && S.mode === 'normal' && S.blackholes && S.blackholes[id] != null), tk.obj.position, colorOf && colorOf(id));
     updateBadges(now);
     if (hlGroup.children.length) hlMat.opacity = 0.6 + 0.2 * Math.sin(now / 220);
@@ -838,6 +870,8 @@ export function createBoardScene(container, opts) {
       if (!BOARD.length) return;
       rebuildProps();
       syncHoles();
+      syncBarriers();
+      kaiju.sync(state.kaiju, state.kaijuFx, i => tilePoint(i, 0, 0));
       const rolled = lastDiceSeq !== null && state.diceSeq !== lastDiceSeq;
       lastDiceSeq = state.diceSeq;
       syncTokens(rolled);

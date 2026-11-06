@@ -84,6 +84,82 @@ function kabupaten() {
   return g;
 }
 
+/* ---------------- Jombang: tingkat bangunan istimewa (gaya Jawa Timur + beringin) ---------------- */
+// Daun & kayu beringin tidak ikut diwarnai pemilik, supaya ciri khas Jombang selalu terlihat.
+const keep = m => { m.userData.keep = true; return m; };
+const LEAF = [keep(M('#2f8a3a', { roughness: 0.85 })), keep(M('#3c9e44', { roughness: 0.85 })), keep(M('#25702f', { roughness: 0.85 }))];
+const BARK = keep(M('#6a4a2e', { roughness: 0.95 }));
+const PADDY = keep(M('#8fcf4a', { roughness: 0.9 })), PADDY2 = keep(M('#b9dc5a', { roughness: 0.9 }));
+// Pohon beringin kecil: batang, tajuk bulat bergerombol, akar gantung. s = skala, (x, y, z) = pangkal batang.
+function banyan(g, x, z, s, y = 0) {
+  put(g, cyl(0.018 * s, 0.032 * s, 0.17 * s, 7), BARK, x, y, z);
+  [[0, 0.24, 0, 0.11], [0.09, 0.2, 0.02, 0.08], [-0.09, 0.2, -0.01, 0.08], [0.02, 0.21, 0.09, 0.075], [-0.02, 0.21, -0.09, 0.075], [0, 0.3, 0, 0.07]]
+    .forEach(([dx, dy, dz, r], k) => put(g, sph(r * s, 10, 8), LEAF[k % 3], x + dx * s, y + (dy - r) * s, z + dz * s).scale.set(1, 0.8, 1));
+  for (let k = 0; k < 7; k++) { const a = k * 0.9, rad = (0.06 + (k % 3) * 0.025) * s, len = (0.06 + (k % 3) * 0.025) * s; put(g, cyl(0.003, 0.003, len, 4), BARK, x + Math.cos(a) * rad, y + 0.16 * s - len, z + Math.sin(a) * rad); }
+}
+// Atap joglo bertingkat: brunjung tinggi di tengah di atas atap emper yang lebar.
+function joglo(g, w, d, mat, x, y, z, s = 1) {
+  pyramid(g, w * 1.12, 0.05 * s, d * 1.15, mat, x, y, z);
+  pyramid(g, w * 0.62, 0.09 * s, d * 0.62, mat, x, y + 0.035 * s, z);
+  put(g, box(w * 0.18, 0.012, d * 0.08), mat, x, y + 0.12 * s, z); // molo (bubungan)
+}
+const SPECIAL_LEVELS = {
+  Jombang: [null,
+    // 🌾 Desa Sawah: petak sawah bertingkat, rumah limasan kayu, gubuk, dan bibit beringin
+    () => {
+      const g = new THREE.Group();
+      put(g, box(0.58, 0.015, 0.44), '#8fbf5a', 0, 0, 0);
+      put(g, box(0.26, 0.012, 0.36), keep(M('#6f9e3a')), -0.14, 0.015, 0.0); // pematang
+      for (let r = 0; r < 6; r++) put(g, box(0.22, 0.02, 0.022), r % 2 ? PADDY2 : PADDY, -0.14, 0.027, -0.14 + r * 0.056); // larik padi
+      for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) put(g, cyl(0.006, 0.006, 0.07, 5), '#6b4423', -0.14 + dx * 0.04, 0.015, 0.14 + dz * 0.03); // gubuk sawah
+      pyramid(g, 0.12, 0.05, 0.09, M('#c9a46a', { roughness: 0.95 }), -0.14, 0.085, 0.14);
+      put(g, box(0.18, 0.1, 0.14), '#b07a45', 0.13, 0.015, -0.03); // rumah limasan
+      put(g, box(0.04, 0.065, 0.005), '#5a3418', 0.13, 0.015, 0.042);
+      put(g, box(0.035, 0.03, 0.005), '#f3e2b5', 0.07, 0.06, 0.042); put(g, box(0.035, 0.03, 0.005), '#f3e2b5', 0.19, 0.06, 0.042);
+      joglo(g, 0.18, 0.14, M('#7a3b1e', { roughness: 0.9 }), 0.13, 0.115, -0.03, 0.8);
+      banyan(g, 0.21, 0.14, 0.55, 0.015);
+      return g;
+    },
+    // 🏘️ Kota: alun-alun kecil dengan beringin di tengah, deretan ruko beratap joglo, dan lampu taman
+    () => {
+      const g = new THREE.Group();
+      put(g, box(0.58, 0.02, 0.44), '#bdb6a5', 0, 0, 0);
+      put(g, cyl(0.1, 0.1, 0.015, 20), '#8fbf5a', 0, 0.02, 0.08); // taman bundar
+      put(g, cyl(0.045, 0.05, 0.03, 16), '#f4f1e8', 0, 0.035, 0.08); // pot beringin
+      banyan(g, 0, 0.08, 0.75, 0.065);
+      for (const [x, c] of [[-0.19, '#e8c26a'], [0, '#d98b5f'], [0.19, '#e9e1cf']]) {
+        put(g, box(0.17, 0.13, 0.12), c, x, 0.02, -0.14);
+        put(g, box(0.13, 0.05, 0.005), '#2c3e50', x, 0.06, -0.079);
+        joglo(g, 0.17, 0.12, M('#8a3b24'), x, 0.15, -0.14, 0.75);
+      }
+      for (const x of [-0.24, 0.24]) { put(g, cyl(0.005, 0.005, 0.14, 6), '#333', x, 0.02, 0.17); put(g, sph(0.016), M('#ffe08a', { emissive: '#ffcc33', emissiveIntensity: 0.9 }), x, 0.16, 0.17); }
+      return g;
+    },
+    // 🏛️ Kabupaten: Pendopo Agung beratap joglo bertingkat, gapura candi bentar bata merah, dan beringin besar
+    () => {
+      const g = new THREE.Group();
+      plaza(g, 0.6, 0.48, '#cfc8b8');
+      put(g, box(0.36, 0.035, 0.26), '#e9e4d6', -0.04, 0.03, -0.06); // umpak / lantai pendopo
+      for (const [px, pz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) put(g, cyl(0.012, 0.012, 0.13, 8), '#6b3d1f', -0.04 + px * 0.05, 0.065, -0.06 + pz * 0.04); // saka guru
+      for (let k = 0; k < 4; k++) for (const pz of [-0.17, 0.05]) put(g, cyl(0.008, 0.008, 0.1, 6), '#7a4a26', -0.19 + k * 0.1, 0.065, pz); // saka emper
+      joglo(g, 0.36, 0.26, M('#5a2e1a', { roughness: 0.85 }), -0.04, 0.165, -0.06, 1.3);
+      put(g, sph(0.018), M('#e2b33c', GOLD), -0.04, 0.33, -0.06); // mustaka emas
+      const brick = M('#b5532f', { roughness: 0.9 });
+      for (const sx of [-1, 1]) { // candi bentar: gapura terbelah dua
+        const x = -0.04 + sx * 0.075;
+        put(g, box(0.06, 0.08, 0.05), brick, x, 0.03, 0.18);
+        put(g, box(0.048, 0.05, 0.04), brick, x, 0.11, 0.18);
+        put(g, box(0.034, 0.04, 0.03), brick, x, 0.16, 0.18);
+        pyramid(g, 0.026, 0.04, 0.022, brick, x, 0.2, 0.18);
+      }
+      banyan(g, 0.22, 0.1, 1.0, 0.03);
+      put(g, cyl(0.005, 0.005, 0.3, 6), '#d0d0d0', -0.26, 0.03, 0.17);
+      put(g, box(0.06, 0.02, 0.003), '#d9412f', -0.23, 0.29, 0.17); put(g, box(0.06, 0.02, 0.003), '#ffffff', -0.23, 0.27, 0.17);
+      return g;
+    }
+  ]
+};
+
 /* ---------------- Landmark khas tiap kota ---------------- */
 const LANDMARKS = {
   // Monas
@@ -306,6 +382,35 @@ const LANDMARKS = {
     put(g, cyl(0.025, 0.04, 0.42, 8), '#f4f1e8', 0, 0.06, 0);
     put(g, new THREE.TorusGeometry(0.06, 0.008, 6, 20), '#e2b33c', 0, 0.42, 0);
   },
+  // 🌳 Ringin Contong, Jombang: tugu berbentuk contong (kerucut) di alun-alun dengan pohon beringin raksasa
+  // di puncaknya, akar gantung menjuntai, dan lampu taman. Paling tinggi di antara semua landmark.
+  Jombang: g => {
+    const leaf = [M('#2f8a3a', { roughness: 0.85 }), M('#3c9e44', { roughness: 0.85 }), M('#25702f', { roughness: 0.85 })];
+    const bark = M('#6a4a2e', { roughness: 0.95 }), root = M('#7d5a38', { roughness: 0.95 });
+    for (const m of [...leaf, bark, root]) m.userData.keep = true; // pohon tetap hijau-coklat, tidak ikut warna pemilik
+    put(g, cyl(0.3, 0.31, 0.02, 32), '#8fbf5a', 0, 0, 0); // taman alun-alun
+    put(g, cyl(0.2, 0.22, 0.04, 24), '#e9e4d6', 0, 0.02, 0); // undakan
+    put(g, cyl(0.16, 0.18, 0.04, 24), '#f4f1e8', 0, 0.06, 0);
+    put(g, cyl(0.05, 0.13, 0.36, 24), '#f4f1e8', 0, 0.1, 0); // contong (kerucut)
+    for (let k = 0; k < 3; k++) put(g, cyl(0.13 - k * 0.025 - 0.02, 0.13 - k * 0.025 - 0.015, 0.012, 24), '#c9a227', 0, 0.16 + k * 0.1, 0); // cincin emas
+    put(g, cyl(0.07, 0.055, 0.03, 16), '#e9e4d6', 0, 0.46, 0); // pot di puncak
+    put(g, cyl(0.03, 0.05, 0.16, 8), bark, 0, 0.49, 0); // batang
+    for (let k = 0; k < 5; k++) { const a = k * 1.256; put(g, cyl(0.008, 0.016, 0.13, 6), bark, Math.cos(a) * 0.04, 0.55, Math.sin(a) * 0.04, [Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7]); } // dahan
+    // tajuk rimbun: gerombol bola daun
+    const blobs = [[0, 0.74, 0, 0.17], [0.15, 0.68, 0.04, 0.12], [-0.15, 0.69, -0.02, 0.13], [0.04, 0.7, 0.15, 0.12], [-0.05, 0.69, -0.15, 0.12], [0.1, 0.8, -0.08, 0.1], [-0.09, 0.82, 0.08, 0.1], [0.2, 0.62, -0.1, 0.08], [-0.2, 0.62, 0.1, 0.08], [0, 0.9, 0, 0.09]];
+    blobs.forEach(([x, y, z, r], k) => put(g, sph(r, 12, 9), leaf[k % 3], x, y - r, z).scale.set(1, 0.8, 1));
+    // akar gantung menjuntai dari tajuk
+    for (let k = 0; k < 16; k++) {
+      const a = k * 0.39 + (k % 2) * 0.2, rad = 0.12 + (k % 4) * 0.035, len = 0.12 + ((k * 7) % 5) * 0.03;
+      put(g, cyl(0.004, 0.004, len, 4), root, Math.cos(a) * rad, 0.6 - len, Math.sin(a) * rad);
+    }
+    // lampu taman di sekeliling
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3 + 0.5;
+      put(g, cyl(0.005, 0.005, 0.1, 6), '#333', Math.cos(a) * 0.26, 0.02, Math.sin(a) * 0.26);
+      put(g, sph(0.016), M('#ffe08a', { emissive: '#ffcc33', emissiveIntensity: 0.9 }), Math.cos(a) * 0.26, 0.12, Math.sin(a) * 0.26);
+    }
+  },
   Pekanbaru: g => {
     plaza(g, 0.56, 0.46);
     put(g, box(0.3, 0.12, 0.26), '#f4f1e8', 0, 0.03, 0);
@@ -320,8 +425,9 @@ function cached(key, build) {
   if (!cache.has(key)) { const g = new THREE.Group(); build(g); cache.set(key, g); }
   return cache.get(key).clone();
 }
-// level 1 = Desa, 2 = Kota, 3 = Kabupaten
-export function levelModel(level) {
+// level 1 = Desa, 2 = Kota, 3 = Kabupaten. Kota istimewa (Jombang) punya model tingkatnya sendiri.
+export function levelModel(level, cityName) {
+  if (SPECIAL_LEVELS[cityName]) return cached(`lv${level}:${cityName}`, g => g.add(SPECIAL_LEVELS[cityName][level]()));
   return cached('lv' + level, g => g.add([desa, desa, kota, kabupaten][level]()));
 }
 // Kota tanpa landmark khusus: tugu emas sederhana

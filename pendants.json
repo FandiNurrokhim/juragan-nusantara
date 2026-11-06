@@ -112,5 +112,9 @@
     "effects": [{"on": "salary", "do": "card", "card": "sabotase", "chance": 0.5}] },
   { "id": "kristal_alien", "name": "Kristal Alien", "icon": "🔮", "desc": "Signature Alien. Kontrol dadu +10%, dan setiap berhenti di propertimu sendiri dapat Rp 700 rb.",
     "stats": {"dice": 0.1},
-    "effects": [{"on": "landOwn", "do": "money", "amount": 700000}] }
+    "effects": [{"on": "landOwn", "do": "money", "amount": 700000}] },
+  { "id": "helm_sni", "name": "Helm SNI", "icon": "🪖", "desc": "Kontrol dadu +65%: bidikan jumlah dadu jauh lebih sering tepat sasaran.",
+    "stats": {"dice": 0.65} },
+  { "id": "kawalan_darurat", "name": "Kawalan Darurat", "icon": "🚨", "desc": "Signature Polisi. Hak Imunitas: setiap melewati Mulai, perisai aktif untuk 2 kali berhenti berikutnya: membebaskan sekali sewa atau pajak, atau menangkis satu serangan lawan.",
+    "effects": [{"on": "salary", "do": "immune"}] }
 ]
